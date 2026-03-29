@@ -36,7 +36,7 @@ const (
 type PacketType int
 
 const (
-	Data        PacketType = iota
+	Data PacketType = iota
 	Flush
 	Delimiter
 	ResponseEnd
@@ -54,10 +54,15 @@ var (
 	ErrIncomplete       = errors.New("incomplete packet")
 	ErrInvalidLength    = errors.New("invalid length")
 	ErrInvalidCharacter = errors.New("invalid character")
+	ErrEmptyFrame       = errors.New("empty frame")
 )
 
-// Encode encodes data as a pkt-line frame and returns the wire bytes.
+// Encode data into pkt-line protocol frame and returns the wire bytes.
 func Encode(data []byte) ([]byte, error) {
+	if len(data) == 0 {
+		return nil, ErrEmptyFrame
+	}
+
 	total := len(data) + 4
 	if total > MaxPktLen {
 		return nil, ErrPacketTooLarge
