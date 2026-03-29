@@ -1,2 +1,5 @@
-// Zig cache
+# Zig cache
 .zig-cache/
+
+# binaries
+zig-out/
