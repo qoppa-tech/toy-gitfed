@@ -20,10 +20,10 @@ const (
 )
 
 type (
-	Signature = [SignatureSize]byte
-	PublicKey = [PublicKeySize]byte
-	SecretKey = [SecretKeySize]byte
-	Seed      = [SeedSize]byte
+	SignatureType = [SignatureSize]byte
+	PublicKeyType = [PublicKeySize]byte
+	SecretKeyType = [SecretKeySize]byte
+	SeedType      = [SeedSize]byte
 )
 
 var (
@@ -34,8 +34,8 @@ var (
 
 // KeyPair holds an Ed25519 key pair as raw byte arrays.
 type KeyPair struct {
-	PublicKey PublicKey
-	SecretKey SecretKey
+	PublicKey PublicKeyType
+	SecretKey SecretKeyType
 }
 
 // GenerateKeyPair generates a random Ed25519 key pair.
@@ -51,7 +51,7 @@ func GenerateKeyPair() (KeyPair, error) {
 }
 
 // KeyPairFromSeed derives a key pair from a 32-byte seed deterministically.
-func KeyPairFromSeed(seed Seed) KeyPair {
+func KeyPairFromSeed(seed SeedType) KeyPair {
 	priv := ed25519.NewKeyFromSeed(seed[:])
 	pub := priv.Public().(ed25519.PublicKey)
 	var kp KeyPair
@@ -61,29 +61,29 @@ func KeyPairFromSeed(seed Seed) KeyPair {
 }
 
 // Sign creates a detached Ed25519 signature for message using secretKey.
-func Sign(message []byte, secretKey SecretKey) Signature {
+func Sign(message []byte, secretKey SecretKeyType) SignatureType {
 	priv := ed25519.PrivateKey(secretKey[:])
 	sig := ed25519.Sign(priv, message)
-	var out Signature
+	var out SignatureType
 	copy(out[:], sig)
 	return out
 }
 
 // Verify checks a detached signature against message and publicKey.
 // Returns true on success, false on any failure.
-func Verify(message []byte, signature Signature, publicKey PublicKey) bool {
+func Verify(message []byte, signature SignatureType, publicKey PublicKeyType) bool {
 	pub := ed25519.PublicKey(publicKey[:])
 	return ed25519.Verify(pub, message, signature[:])
 }
 
 // SignatureToHex encodes a 64-byte signature as a 128-character lowercase hex string.
-func SignatureToHex(sig Signature) string {
+func SignatureToHex(sig SignatureType) string {
 	return hex.EncodeToString(sig[:])
 }
 
 // SignatureFromHex decodes a 128-character hex string to a 64-byte signature.
-func SignatureFromHex(h string) (Signature, error) {
-	var out Signature
+func SignatureFromHex(h string) (SignatureType, error) {
+	var out SignatureType
 	if len(h) != 128 {
 		return out, ErrInvalidHexLength
 	}
@@ -96,13 +96,13 @@ func SignatureFromHex(h string) (Signature, error) {
 }
 
 // SignatureToBase64 encodes a 64-byte signature as standard base64 with padding.
-func SignatureToBase64(sig Signature) string {
+func SignatureToBase64(sig SignatureType) string {
 	return base64.StdEncoding.EncodeToString(sig[:])
 }
 
 // SignatureFromBase64 decodes a standard base64 string to a 64-byte signature.
-func SignatureFromBase64(encoded string) (Signature, error) {
-	var out Signature
+func SignatureFromBase64(encoded string) (SignatureType, error) {
+	var out SignatureType
 	b, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
 		return out, ErrInvalidBase64
@@ -115,13 +115,13 @@ func SignatureFromBase64(encoded string) (Signature, error) {
 }
 
 // PublicKeyToHex encodes a 32-byte public key as a 64-character lowercase hex string.
-func PublicKeyToHex(key PublicKey) string {
+func PublicKeyToHex(key PublicKeyType) string {
 	return hex.EncodeToString(key[:])
 }
 
 // PublicKeyFromHex decodes a 64-character hex string to a 32-byte public key.
-func PublicKeyFromHex(h string) (PublicKey, error) {
-	var out PublicKey
+func PublicKeyFromHex(h string) (PublicKeyType, error) {
+	var out PublicKeyType
 	if len(h) != 64 {
 		return out, ErrInvalidHexLength
 	}
