@@ -8,7 +8,10 @@ import (
 )
 
 func TestSignAndVerify(t *testing.T) {
-	kp := GenerateKeyPair()
+	kp, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
 	msg := []byte("commit abc123\nauthor alice\n")
 	sig := Sign(msg, kp.SecretKey)
 	if !Verify(msg, sig, kp.PublicKey) {
@@ -17,7 +20,10 @@ func TestSignAndVerify(t *testing.T) {
 }
 
 func TestTamperedMessageFailsVerify(t *testing.T) {
-	kp := GenerateKeyPair()
+	kp, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
 	sig := Sign([]byte("original message"), kp.SecretKey)
 	if Verify([]byte("tampered message"), sig, kp.PublicKey) {
 		t.Fatal("expected verify to fail")
@@ -25,7 +31,10 @@ func TestTamperedMessageFailsVerify(t *testing.T) {
 }
 
 func TestTamperedSignatureFailsVerify(t *testing.T) {
-	kp := GenerateKeyPair()
+	kp, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
 	msg := []byte("commit content")
 	sig := Sign(msg, kp.SecretKey)
 	sig[0] ^= 0xff
@@ -35,8 +44,14 @@ func TestTamperedSignatureFailsVerify(t *testing.T) {
 }
 
 func TestWrongKeyFailsVerify(t *testing.T) {
-	kp1 := GenerateKeyPair()
-	kp2 := GenerateKeyPair()
+	kp1, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	kp2, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
 	msg := []byte("some data")
 	sig := Sign(msg, kp1.SecretKey)
 	if Verify(msg, sig, kp2.PublicKey) {
@@ -73,7 +88,10 @@ func TestDifferentSeedsDifferentKeyPairs(t *testing.T) {
 }
 
 func TestSignatureHexRoundtrip(t *testing.T) {
-	kp := GenerateKeyPair()
+	kp, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
 	sig := Sign([]byte("roundtrip"), kp.SecretKey)
 	h := SignatureToHex(sig)
 	recovered, err := SignatureFromHex(h)
@@ -86,7 +104,10 @@ func TestSignatureHexRoundtrip(t *testing.T) {
 }
 
 func TestSignatureBase64Roundtrip(t *testing.T) {
-	kp := GenerateKeyPair()
+	kp, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
 	sig := Sign([]byte("base64 roundtrip"), kp.SecretKey)
 	b64 := SignatureToBase64(sig)
 	recovered, err := SignatureFromBase64(b64)
@@ -99,7 +120,10 @@ func TestSignatureBase64Roundtrip(t *testing.T) {
 }
 
 func TestPublicKeyHexRoundtrip(t *testing.T) {
-	kp := GenerateKeyPair()
+	kp, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
 	h := PublicKeyToHex(kp.PublicKey)
 	recovered, err := PublicKeyFromHex(h)
 	if err != nil {
@@ -148,7 +172,10 @@ func TestPublicKeyFromHexInvalidChars(t *testing.T) {
 }
 
 func TestSignEmptyMessage(t *testing.T) {
-	kp := GenerateKeyPair()
+	kp, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
 	sig := Sign([]byte{}, kp.SecretKey)
 	if !Verify([]byte{}, sig, kp.PublicKey) {
 		t.Fatal("verify failed for empty message")
@@ -156,7 +183,10 @@ func TestSignEmptyMessage(t *testing.T) {
 }
 
 func TestSignLargeMessage(t *testing.T) {
-	kp := GenerateKeyPair()
+	kp, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
 	msg := bytes.Repeat([]byte{0xab}, 1024*1024)
 	sig := Sign(msg, kp.SecretKey)
 	if !Verify(msg, sig, kp.PublicKey) {
