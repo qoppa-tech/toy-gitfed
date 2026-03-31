@@ -114,23 +114,8 @@ func TestMultiplePacketsViaConsumed(t *testing.T) {
 }
 
 func TestEmptyPayloadEncodesAs0004(t *testing.T) {
-	pkt, err := Encode([]byte{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(pkt) != "0004" {
-		t.Fatalf("got %q, want %q", string(pkt), "0004")
-	}
-
-	decoded, err := Decode([]byte("0004"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if decoded.Type != Data {
-		t.Fatalf("type = %v, want Data", decoded.Type)
-	}
-	if len(decoded.Payload) != 0 {
-		t.Fatalf("payload len = %d, want 0", len(decoded.Payload))
+	if _, err := Encode([]byte{}); err == nil {
+		t.Fatal("Empty data is not allowed")
 	}
 }
 
@@ -193,7 +178,7 @@ func TestPacketIterator(t *testing.T) {
 		t.Fatal(err)
 	}
 	if p1 == nil || p1.Type != Data || string(p1.Payload) != "hello\n" {
-		t.Fatalf("p1 unexpected: %+v", p1)
+		t.Fatalf("p1 unexpected: %+v, data: %s", p1, p1.Payload)
 	}
 
 	p2, err := iter.Next()

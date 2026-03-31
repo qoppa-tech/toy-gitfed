@@ -36,7 +36,7 @@ const (
 type PacketType int
 
 const (
-	Data        PacketType = iota
+	Data PacketType = iota
 	Flush
 	Delimiter
 	ResponseEnd
@@ -44,8 +44,10 @@ const (
 
 // Packet is a decoded pkt-line frame.
 type Packet struct {
-	Type     PacketType
-	Payload  []byte
+	Type PacketType
+	// Data payload by itself
+	Payload []byte
+	// Total consumed data
 	Consumed int
 }
 
@@ -54,10 +56,15 @@ var (
 	ErrIncomplete       = errors.New("incomplete packet")
 	ErrInvalidLength    = errors.New("invalid length")
 	ErrInvalidCharacter = errors.New("invalid character")
+	ErrEmptyPacket      = errors.New("empty packet")
 )
 
-// Encode encodes data as a pkt-line frame and returns the wire bytes.
+// Encode data into pkt-line protocol frame and returns the wire bytes.
 func Encode(data []byte) ([]byte, error) {
+	if len(data) == 0 {
+		return nil, ErrEmptyPacket
+	}
+
 	total := len(data) + 4
 	if total > MaxPktLen {
 		return nil, ErrPacketTooLarge
@@ -71,9 +78,15 @@ func Encode(data []byte) ([]byte, error) {
 // EncodeLine writes a length-prefixed pkt-line frame to w.
 func EncodeLine(w io.Writer, data []byte) error {
 	total := len(data) + 4
+
 	if total > MaxPktLen {
 		return ErrPacketTooLarge
 	}
+
+	if total == 0 {
+		return ErrEmptyPacket
+	}
+
 	prefix := fmt.Sprintf("%04x", total)
 	if _, err := w.Write([]byte(prefix)); err != nil {
 		return err
@@ -109,6 +122,8 @@ func Decode(data []byte) (Packet, error) {
 		return Packet{Type: ResponseEnd, Consumed: 4}, nil
 	case 3:
 		return Packet{}, ErrInvalidLength
+	case 4:
+		return Packet{}, ErrEmptyPacket
 	}
 
 	if len(data) < int(rawLen) {
@@ -122,34 +137,37 @@ func Decode(data []byte) (Packet, error) {
 	}, nil
 }
 
-// PacketIterator is a streaming pkt-line iterator over an io.Reader.
-type PacketIterator struct {
+// PktLineStream is a streaming pkt-line iterator over an io.Reader.
+type PktLineStream struct {
 	reader io.Reader
 	buf    [MaxPktLen]byte
 }
 
 // NewPacketIterator creates a new PacketIterator.
-func NewPacketIterator(r io.Reader) *PacketIterator {
-	return &PacketIterator{reader: r}
+func NewPacketIterator(r io.Reader) *PktLineStream {
+	return &PktLineStream{reader: r}
 }
 
 // Next reads the next packet from the stream. Returns nil at EOF.
-func (it *PacketIterator) Next() (*Packet, error) {
+func (it *PktLineStream) Next() (*Packet, error) {
 	// Read exactly 4 bytes for the length prefix.
-	n, err := io.ReadFull(it.reader, it.buf[:4])
+	rawPktLen, err := io.ReadFull(it.reader, it.buf[:4])
+
+	if err == io.EOF && rawPktLen == 0 {
+		// stream ended prematurely
+		return nil, nil // clean EOF
+	}
+
 	if err != nil {
-		if err == io.EOF && n == 0 {
-			return nil, nil // clean EOF
-		}
 		return nil, err
 	}
 
-	rawLen, err := strconv.ParseUint(string(it.buf[:4]), 16, 16)
+	pktDataLen, err := strconv.ParseUint(string(it.buf[:4]), 16, 16)
 	if err != nil {
 		return nil, ErrInvalidLength
 	}
 
-	switch rawLen {
+	switch pktDataLen {
 	case 0:
 		return &Packet{Type: Flush, Consumed: 4}, nil
 	case 1:
@@ -158,17 +176,19 @@ func (it *PacketIterator) Next() (*Packet, error) {
 		return &Packet{Type: ResponseEnd, Consumed: 4}, nil
 	case 3:
 		return nil, ErrInvalidLength
+	case 4:
+		// A package with data len of 4 (a.k.a. empty data) is invalid
+		return nil, ErrEmptyPacket
 	}
 
-	// Data packet: read the remaining (rawLen - 4) payload bytes.
-	payloadLen := int(rawLen) - 4
-	if _, err := io.ReadFull(it.reader, it.buf[4:4+payloadLen]); err != nil {
+	// Reads the buffer skipping the first 4 bytes of len data
+	if _, err := io.ReadFull(it.reader, it.buf[4:pktDataLen]); err != nil {
 		return nil, err
 	}
 
 	return &Packet{
 		Type:     Data,
-		Payload:  it.buf[4 : 4+payloadLen],
-		Consumed: int(rawLen),
+		Payload:  it.buf[4:pktDataLen],
+		Consumed: int(rawPktLen),
 	}, nil
 }
