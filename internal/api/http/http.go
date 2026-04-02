@@ -1,9 +1,9 @@
 // Package http implements a Git Smart HTTP server.
 //
-// Delegates to the go-git-http library for all pack negotiation.
+// Delegates to the go-git library for all pack negotiation.
 // This layer is responsible for:
 //
-//  1. Routing requests to the go-git-http handler.
+//  1. Routing requests to the go-git backend handler.
 //  2. Validating repository paths before serving.
 //  3. Setting correct Content-Type headers per Smart HTTP spec.
 //
@@ -24,7 +24,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	githttp "github.com/AaronO/go-git-http"
+	"github.com/go-git/go-billy/v6/osfs"
+	githttp "github.com/go-git/go-git/v6/backend/http"
+	"github.com/go-git/go-git/v6/plumbing/transport"
 )
 
 // Config holds the server configuration.
@@ -38,15 +40,17 @@ type Config struct {
 // Server is the Git Smart HTTP server.
 type Server struct {
 	config  Config
-	handler *githttp.GitHttp
+	handler *githttp.Backend
 }
 
 // NewServer creates a new Server with the given configuration.
 func NewServer(config Config) *Server {
-	gitHandler := githttp.New(config.ReposDir)
+	fs := osfs.New(config.ReposDir)
+	loader := transport.NewFilesystemLoader(fs, false)
+	handler := githttp.NewBackend(loader)
 	return &Server{
 		config:  config,
-		handler: gitHandler,
+		handler: handler,
 	}
 }
 
@@ -84,7 +88,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Construct the URL path expected by the go-git-http handler.
+	// Construct the URL path expected by the go-git handler.
 	var suffix string
 	switch parsed.Service {
 	case infoRefs:
@@ -96,7 +100,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	r.URL.Path = "/" + parsed.Repo + suffix
 
-	// Delegate to the go-git-http handler.
+	// Delegate to the go-git backend handler.
 	s.handler.ServeHTTP(w, r)
 }
 
