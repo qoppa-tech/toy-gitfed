@@ -15,12 +15,13 @@
         };
 
         commonPackages = with pkgs; [
+          go
           bashInteractive
           coreutils
           curl
           findutils
           gawk
-		  git
+          git
           gnugrep
 		  go
           gnumake
@@ -29,7 +30,7 @@
           unzip
           zip
           docker-client
-		  docker-compose
+          docker-compose
         ];
       in
       {
