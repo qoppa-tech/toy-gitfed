@@ -2,10 +2,10 @@ test:
 	@go test ./... -v -cover
 
 build:
-	@go build -o ./bin/main ./cmd/main.go
+	@go build -o ./bin/http-api ./cmd/http-api
 
 clean:
-	@rm -f ./bin/main
+	@rm -f ./bin/http-api
 
 lint:
 	@go vet ./...
