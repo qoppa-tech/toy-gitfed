@@ -27,6 +27,14 @@ import (
 	"github.com/go-git/go-billy/v6/osfs"
 	githttp "github.com/go-git/go-git/v6/backend/http"
 	"github.com/go-git/go-git/v6/plumbing/transport"
+
+	"github.com/qoppa-tech/toy-gitfed/internal/database/sqlc"
+	"github.com/qoppa-tech/toy-gitfed/internal/server/middleware"
+	"github.com/qoppa-tech/toy-gitfed/internal/server/modules/organization"
+	"github.com/qoppa-tech/toy-gitfed/internal/server/modules/session"
+	"github.com/qoppa-tech/toy-gitfed/internal/server/modules/sso"
+	"github.com/qoppa-tech/toy-gitfed/internal/server/modules/user"
+	"github.com/qoppa-tech/toy-gitfed/internal/store"
 )
 
 // Config holds the server configuration.
@@ -35,23 +43,64 @@ type Config struct {
 	ReposDir string
 	// TCP address to listen on (e.g. "0.0.0.0:8080").
 	Address string
+	// Queries is the sqlc Queries instance for database access.
+	Queries *sqlc.Queries
+	// Redis is the Redis store for session/token management.
+	Redis *store.RedisStore
+	// Google OAuth configuration.
+	GoogleOAuth sso.GoogleConfig
+	// TOTPIssuer is the issuer name shown in authenticator apps.
+	TOTPIssuer string
 }
 
 // Server is the Git Smart HTTP server.
 type Server struct {
-	config  Config
-	handler *githttp.Backend
+	config     Config
+	gitHandler *githttp.Backend
+	mux        *http.ServeMux
 }
 
 // NewServer creates a new Server with the given configuration.
 func NewServer(config Config) *Server {
 	fs := osfs.New(config.ReposDir)
 	loader := transport.NewFilesystemLoader(fs, false)
-	handler := githttp.NewBackend(loader)
-	return &Server{
-		config:  config,
-		handler: handler,
+	gitHandler := githttp.NewBackend(loader)
+
+	s := &Server{
+		config:     config,
+		gitHandler: gitHandler,
+		mux:        http.NewServeMux(),
 	}
+
+	s.registerAuthRoutes()
+	return s
+}
+
+func (s *Server) registerAuthRoutes() {
+	q := s.config.Queries
+	redis := s.config.Redis
+
+	// Services.
+	userSvc := user.NewService(q)
+	sessionSvc := session.NewService(q, redis)
+	ssoSvc := sso.NewService(q, redis, s.config.GoogleOAuth)
+	totpSvc := session.NewTOTPService(redis, s.config.TOTPIssuer)
+	_ = organization.NewService(q) // scaffold — routes can be added later
+
+	// Auth middleware.
+	authMw := middleware.Auth(sessionSvc)
+
+	// Handlers.
+	userHandler := user.NewHandler(userSvc)
+	sessionHandler := session.NewHandler(sessionSvc, userSvc)
+	ssoHandler := sso.NewHandler(ssoSvc, userSvc, sessionSvc)
+	totpHandler := session.NewTOTPHandler(totpSvc)
+
+	// Register routes.
+	userHandler.RegisterRoutes(s.mux)
+	sessionHandler.RegisterRoutes(s.mux)
+	ssoHandler.RegisterRoutes(s.mux)
+	totpHandler.RegisterRoutes(s.mux, authMw)
 }
 
 // Serve binds to the configured address and blocks, handling connections.
@@ -65,7 +114,15 @@ func (s *Server) Serve() error {
 }
 
 // ServeHTTP implements http.Handler.
+// Auth routes are handled by the mux; git routes by the go-git backend.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Route /auth/* requests to the auth mux.
+	if strings.HasPrefix(r.URL.Path, "/auth/") {
+		s.mux.ServeHTTP(w, r)
+		return
+	}
+
+	// Git Smart HTTP handling.
 	parsed := parseGitURL(r.URL.Path, r.URL.RawQuery)
 	if parsed == nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
@@ -101,10 +158,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.URL.Path = "/" + parsed.Repo + suffix
 
 	// Delegate to the go-git backend handler.
-	s.handler.ServeHTTP(w, r)
+	s.gitHandler.ServeHTTP(w, r)
 }
 
 // gitService identifies which Git Smart HTTP endpoint is being requested.
+// WARN: LEGACY
 type gitService int
 
 const (
