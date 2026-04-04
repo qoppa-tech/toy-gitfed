@@ -2,6 +2,7 @@ package tls
 
 import (
 	"crypto/tls"
+	"errors"
 )
 
 // TLSProfile composes CertStores into use-case-specific TLS configurations.
@@ -15,14 +16,26 @@ type TLSProfile struct {
 
 // ServerTLSConfig builds a *tls.Config suitable for a TLS server.
 func (p *TLSProfile) ServerTLSConfig() (*tls.Config, error) {
-	cert, err := p.ServerCert.GetCertificate()
-	if err != nil {
-		return nil, err
+	if p.ServerCert == nil {
+		return nil, errors.New("tls: ServerCert is required")
 	}
 
-	cfg := &tls.Config{
-		Certificates: []tls.Certificate{*cert},
-		MinVersion:   p.MinVersion,
+	var cfg *tls.Config
+
+	// If the store provides a complete TLS config (e.g. ACME with callback-based
+	// certificate provisioning), use it as the base.
+	if provider, ok := p.ServerCert.(TLSConfigProvider); ok {
+		cfg = provider.TLSConfig()
+		cfg.MinVersion = p.MinVersion
+	} else {
+		cert, err := p.ServerCert.GetCertificate()
+		if err != nil {
+			return nil, err
+		}
+		cfg = &tls.Config{
+			Certificates: []tls.Certificate{*cert},
+			MinVersion:   p.MinVersion,
+		}
 	}
 
 	if p.VerifyPeer && p.ClientCA != nil {

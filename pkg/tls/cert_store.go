@@ -13,3 +13,9 @@ type CertStore interface {
 	// Returns nil, nil if no CA pool is configured.
 	GetCACertPool() (*x509.CertPool, error)
 }
+
+// TLSConfigProvider is an optional interface for CertStores that provide
+// a complete *tls.Config with callback-based certificate provisioning (e.g. ACME).
+type TLSConfigProvider interface {
+	TLSConfig() *tls.Config
+}

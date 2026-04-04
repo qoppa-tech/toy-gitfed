@@ -49,13 +49,19 @@ func writeTestPEM(t *testing.T, dir string) (certPath, keyPath, caPath string) {
 	caPath = filepath.Join(dir, "ca.pem")
 
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	os.WriteFile(certPath, certPEM, 0600)
+	if err := os.WriteFile(certPath, certPEM, 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	keyDER, _ := x509.MarshalECPrivateKey(key)
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
-	os.WriteFile(keyPath, keyPEM, 0600)
+	if err := os.WriteFile(keyPath, keyPEM, 0600); err != nil {
+		t.Fatal(err)
+	}
 
-	os.WriteFile(caPath, certPEM, 0600)
+	if err := os.WriteFile(caPath, certPEM, 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	return certPath, keyPath, caPath
 }

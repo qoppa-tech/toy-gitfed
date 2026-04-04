@@ -22,7 +22,7 @@ type SelfSignedConfig struct {
 // Implements CertStore.
 type SelfSignedStore struct {
 	cert   *tls.Certificate
-	caCert []byte // DER-encoded CA certificate (same as leaf for self-signed)
+	caPool *x509.CertPool
 }
 
 // NewSelfSignedStore generates a self-signed certificate with the given config.
@@ -66,9 +66,16 @@ func NewSelfSignedStore(cfg SelfSignedConfig) (*SelfSignedStore, error) {
 		PrivateKey:  key,
 	}
 
+	parsed, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return nil, err
+	}
+	pool := x509.NewCertPool()
+	pool.AddCert(parsed)
+
 	return &SelfSignedStore{
 		cert:   tlsCert,
-		caCert: certDER,
+		caPool: pool,
 	}, nil
 }
 
@@ -77,11 +84,5 @@ func (s *SelfSignedStore) GetCertificate() (*tls.Certificate, error) {
 }
 
 func (s *SelfSignedStore) GetCACertPool() (*x509.CertPool, error) {
-	parsed, err := x509.ParseCertificate(s.caCert)
-	if err != nil {
-		return nil, err
-	}
-	pool := x509.NewCertPool()
-	pool.AddCert(parsed)
-	return pool, nil
+	return s.caPool, nil
 }
