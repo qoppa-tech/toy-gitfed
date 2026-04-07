@@ -39,6 +39,11 @@ func (s *RedisStore) Close() error {
 	return s.client.Close()
 }
 
+// Client returns the underlying Redis client for direct use by other packages.
+func (s *RedisStore) Client() *redis.Client {
+	return s.client
+}
+
 // Access token operations (short-lived, Redis-only)
 
 func accessKey(token string) string {
