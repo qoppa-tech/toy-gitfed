@@ -7,10 +7,18 @@ import (
 	"github.com/qoppa-tech/toy-gitfed/pkg/env"
 )
 
+type RateLimitConfig struct {
+	IPRate    int
+	IPBurst   int
+	UserRate  int
+	UserBurst int
+}
+
 type Config struct {
-	Database database.Config
-	Redis    store.RedisConfig
-	Google   sso.GoogleConfig
+	Database  database.Config
+	Redis     store.RedisConfig
+	Google    sso.GoogleConfig
+	RateLimit RateLimitConfig
 
 	HTTPAddr      string
 	TOTPIssuer    string
@@ -37,6 +45,12 @@ func Load() Config {
 			ClientID:     env.Or("GOOGLE_CLIENT_ID", ""),
 			ClientSecret: env.Or("GOOGLE_CLIENT_SECRET", ""),
 			RedirectURL:  env.Or("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
+		},
+		RateLimit: RateLimitConfig{
+			IPRate:    env.Int("RATE_LIMIT_IP_RATE", 100),
+			IPBurst:   env.Int("RATE_LIMIT_IP_BURST", 20),
+			UserRate:  env.Int("RATE_LIMIT_USER_RATE", 200),
+			UserBurst: env.Int("RATE_LIMIT_USER_BURST", 40),
 		},
 		HTTPAddr:      env.Or("HTTP_ADDR", "0.0.0.0:8080"),
 		TOTPIssuer:    env.Or("TOTP_ISSUER", "gitfed"),
