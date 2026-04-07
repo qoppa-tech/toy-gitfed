@@ -94,3 +94,37 @@ func TestLimiter_Refill(t *testing.T) {
 		t.Fatal("third request should be allowed after refill")
 	}
 }
+
+func TestLimiter_BurstExhaustion(t *testing.T) {
+	client := testRedisClient(t)
+	limiter := NewLimiter(client, "../../scripts/rate_limit.lua")
+
+	ctx := context.Background()
+	key := "rl:test:exhaustion"
+
+	// With burst=5, first request should be allowed.
+	allowed, _, err := limiter.Allow(ctx, key, 1.0, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !allowed {
+		t.Fatal("should be allowed")
+	}
+
+	// Drain remaining 4.
+	for range 4 {
+		limiter.Allow(ctx, key, 1.0, 5)
+	}
+
+	// Next should be denied.
+	allowed, retryAfter, err := limiter.Allow(ctx, key, 1.0, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if allowed {
+		t.Fatal("should be denied after burst exhausted")
+	}
+	if retryAfter <= 0 {
+		t.Error("retryAfter should be > 0")
+	}
+}
