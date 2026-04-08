@@ -20,8 +20,8 @@ var (
 	ErrRepoAccessDenied  = errors.New("repository access denied")
 )
 
-// Repository represents a managed Git repository.
-type Repository struct {
+// Default domain for GitRepository
+type GitRepository struct {
 	ID          uuid.UUID
 	Name        string
 	Description string
@@ -36,6 +36,7 @@ type Repository struct {
 
 // CreateInput holds the parameters for creating a new repository.
 type CreateInput struct {
+	Id          uuid.UUID
 	Name        string
 	Description string
 	IsPrivate   bool
@@ -45,8 +46,10 @@ type CreateInput struct {
 
 // UpdateInput holds the parameters for updating a repository.
 type UpdateInput struct {
+	Name        *string
 	Description *string
 	IsPrivate   *bool
+	OwnerId     *uuid.UUID
 	DefaultRef  *string
 }
 

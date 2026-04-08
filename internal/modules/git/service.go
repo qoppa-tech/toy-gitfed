@@ -30,20 +30,20 @@ func NewService(reposDir string) *Service {
 	return &Service{reposDir: reposDir}
 }
 
-func (s *Service) openStorer(repo Repository) (*filesystem.Storage, error) {
+func (s *Service) openStorer(repo GitRepository) (*filesystem.Storage, error) {
 	path := s.RepoPath(repo)
 	dot := osfs.New(path, osfs.WithBoundOS())
 	return filesystem.NewStorageWithOptions(dot, cache.NewObjectLRUDefault(), filesystem.Options{}), nil
 }
 
-// --- RepositoryManager implementation ---
+// --- RepositoryStore implementation ---
 
-func (s *Service) Create(ctx context.Context, input CreateInput) (Repository, error) {
+func (s *Service) Create(ctx context.Context, input CreateInput) (GitRepository, error) {
 	if !validRepoName.MatchString(input.Name) {
-		return Repository{}, fmt.Errorf("%w: %q", ErrInvalidRepoName, input.Name)
+		return GitRepository{}, fmt.Errorf("%w: %q", ErrInvalidRepoName, input.Name)
 	}
 
-	repo := Repository{
+	repo := GitRepository{
 		ID:          uuid.New(),
 		Name:        input.Name,
 		Description: input.Description,
@@ -60,18 +60,18 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (Repository, er
 
 	_, err := git.PlainInit(path, true, opts...)
 	if err != nil {
-		return Repository{}, fmt.Errorf("init bare repo: %w", err)
+		return GitRepository{}, fmt.Errorf("init bare repo: %w", err)
 	}
 
 	return repo, nil
 }
 
-func (s *Service) GetByID(_ context.Context, id uuid.UUID) (Repository, error) {
-	return Repository{}, fmt.Errorf("%w: lookup by ID not implemented", ErrRepoNotFound)
+func (s *Service) GetByID(_ context.Context, id uuid.UUID) (GitRepository, error) {
+	return GitRepository{}, fmt.Errorf("%w: lookup by ID not implemented", ErrRepoNotFound)
 }
 
-func (s *Service) GetByName(_ context.Context, ownerID uuid.UUID, name string) (Repository, error) {
-	repo := Repository{
+func (s *Service) GetByName(_ context.Context, ownerID uuid.UUID, name string) (GitRepository, error) {
+	repo := GitRepository{
 		ID:      uuid.New(),
 		Name:    name,
 		OwnerID: ownerID,
@@ -79,7 +79,7 @@ func (s *Service) GetByName(_ context.Context, ownerID uuid.UUID, name string) (
 	path := s.RepoPath(repo)
 	fs := osfs.New(path)
 	if _, err := fs.Stat("config"); err != nil {
-		return Repository{}, fmt.Errorf("%w: %s", ErrRepoNotFound, name)
+		return GitRepository{}, fmt.Errorf("%w: %s", ErrRepoNotFound, name)
 	}
 	return repo, nil
 }
@@ -88,15 +88,15 @@ func (s *Service) ListByOwner(_ context.Context, ownerID uuid.UUID) ([]Repositor
 	return nil, fmt.Errorf("list by owner: not implemented without database")
 }
 
-func (s *Service) Update(_ context.Context, id uuid.UUID, input UpdateInput) (Repository, error) {
-	return Repository{}, fmt.Errorf("update: not implemented without database")
+func (s *Service) Update(_ context.Context, id uuid.UUID, input UpdateInput) (GitRepository, error) {
+	return GitRepository{}, fmt.Errorf("update: not implemented without database")
 }
 
 func (s *Service) Delete(_ context.Context, id uuid.UUID) error {
 	return fmt.Errorf("delete: not implemented without database")
 }
 
-func (s *Service) GetRefs(_ context.Context, repo Repository) ([]RefInfo, error) {
+func (s *Service) GetRefs(_ context.Context, repo GitRepository) ([]RefInfo, error) {
 	storer, err := s.openStorer(repo)
 	if err != nil {
 		return nil, fmt.Errorf("open storer: %w", err)
@@ -126,7 +126,7 @@ func (s *Service) GetRefs(_ context.Context, repo Repository) ([]RefInfo, error)
 	return refs, nil
 }
 
-func (s *Service) GetStats(_ context.Context, repo Repository) (RepoStats, error) {
+func (s *Service) GetStats(_ context.Context, repo GitRepository) (RepoStats, error) {
 	storer, err := s.openStorer(repo)
 	if err != nil {
 		return RepoStats{}, fmt.Errorf("open storer: %w", err)
@@ -167,21 +167,21 @@ func (s *Service) GetStats(_ context.Context, repo Repository) (RepoStats, error
 	return stats, nil
 }
 
-func (s *Service) Exists(repo Repository) bool {
+func (s *Service) Exists(repo GitRepository) bool {
 	path := s.RepoPath(repo)
 	fs := osfs.New(path)
 	_, err := fs.Stat("config")
 	return err == nil
 }
 
-func (s *Service) RepoPath(repo Repository) string {
+func (s *Service) RepoPath(repo GitRepository) string {
 	return SanitizeRepoPath(filepath.Join(s.reposDir, repo.Name))
 }
 
 // --- PackService implementation ---
 
 func (s *Service) UploadPack(ctx context.Context, req UploadPackRequest, w io.Writer, r io.Reader) error {
-	repo := Repository{Name: repoNameFromPath(req.RepoPath)}
+	repo := GitRepository{Name: repoNameFromPath(req.RepoPath)}
 	storer, err := s.openStorer(repo)
 	if err != nil {
 		return fmt.Errorf("open storer: %w", err)
@@ -206,7 +206,7 @@ func (s *Service) UploadPack(ctx context.Context, req UploadPackRequest, w io.Wr
 }
 
 func (s *Service) ReceivePack(ctx context.Context, req ReceivePackRequest, w io.Writer, r io.Reader) error {
-	repo := Repository{Name: repoNameFromPath(req.RepoPath)}
+	repo := GitRepository{Name: repoNameFromPath(req.RepoPath)}
 	storer, err := s.openStorer(repo)
 	if err != nil {
 		return fmt.Errorf("open storer: %w", err)
