@@ -8,6 +8,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type GitRepository struct {
+	ID          pgtype.UUID
+	Name        string
+	Description pgtype.Text
+	IsPrivate   bool
+	IsDeleted   bool
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	OwnerID     pgtype.UUID
+	DefaultRef  string
+	Head        string
+}
+
 type Organization struct {
 	OrganizationID          pgtype.UUID
 	OrganizationName        string
