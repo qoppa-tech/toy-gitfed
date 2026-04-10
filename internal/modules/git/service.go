@@ -20,6 +20,28 @@ import (
 
 var validRepoName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
 
+func ValidateRepoName(name string) error {
+	if !validRepoName.MatchString(name) {
+		return fmt.Errorf("%w: %q", ErrInvalidRepoName, name)
+	}
+	return nil
+}
+
+func SanitizeRepoPath(path string) string {
+	path = strings.TrimPrefix(path, "/")
+	path = strings.ReplaceAll(path, "..", "")
+	path = strings.Trim(path, "/")
+	return path
+}
+
+func BuildRepoPath(base string, components ...string) string {
+	parts := []string{base}
+	for _, c := range components {
+		parts = append(parts, SanitizeRepoPath(c))
+	}
+	return strings.Join(parts, "/")
+}
+
 // Service orchestrates repository management and Smart HTTP pack operations.
 type Service struct {
 	reposDir string
@@ -123,6 +145,12 @@ func (s *Service) GetRefs(_ context.Context, repo GitRepository) ([]RefInfo, err
 		return nil, fmt.Errorf("walk references: %w", err)
 	}
 
+	fmt.Printf("refs len: %d\n", len(refs))
+
+	for i := 0; i != len(refs); i++ {
+		fmt.Printf("refs : %s; from %s\n", refs[i].Name, repo.Name)
+	}
+
 	return refs, nil
 }
 
@@ -175,7 +203,7 @@ func (s *Service) Exists(repo GitRepository) bool {
 }
 
 func (s *Service) RepoPath(repo GitRepository) string {
-	return SanitizeRepoPath(filepath.Join(s.reposDir, repo.Name))
+	return filepath.Join(s.reposDir, SanitizeRepoPath(repo.Name))
 }
 
 // --- PackService implementation ---

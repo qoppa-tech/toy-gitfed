@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/qoppa-tech/toy-gitfed/internal/modules/git"
 )
 
 func TestServeHTTP_InfoRefs(t *testing.T) {
@@ -22,7 +24,7 @@ func TestServeHTTP_InfoRefs(t *testing.T) {
 		t.Skipf("git not available: %v", err)
 	}
 
-	srv := NewServer(Config{ReposDir: tmpDir, Address: "127.0.0.1:0"})
+	srv := NewServer(Config{ReposDir: tmpDir, Address: "127.0.0.1:0", GitService: git.NewService(tmpDir)})
 
 	tests := []struct {
 		name            string
@@ -93,7 +95,7 @@ func TestServeHTTP_UploadPack(t *testing.T) {
 		t.Skipf("git not available: %v", err)
 	}
 
-	srv := NewServer(Config{ReposDir: tmpDir, Address: "127.0.0.1:0"})
+	srv := NewServer(Config{ReposDir: tmpDir, Address: "127.0.0.1:0", GitService: git.NewService(tmpDir)})
 
 	tests := []struct {
 		name        string
@@ -150,7 +152,7 @@ func TestServeHTTP_ReceivePack(t *testing.T) {
 		t.Skipf("git not available: %v", err)
 	}
 
-	srv := NewServer(Config{ReposDir: tmpDir, Address: "127.0.0.1:0"})
+	srv := NewServer(Config{ReposDir: tmpDir, Address: "127.0.0.1:0", GitService: git.NewService(tmpDir)})
 
 	tests := []struct {
 		name        string
@@ -199,7 +201,7 @@ func TestServeHTTP_ErrorCases(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	srv := NewServer(Config{ReposDir: tmpDir, Address: "127.0.0.1:0"})
+	srv := NewServer(Config{ReposDir: tmpDir, Address: "127.0.0.1:0", GitService: git.NewService(tmpDir)})
 
 	tests := []struct {
 		name       string

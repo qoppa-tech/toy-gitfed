@@ -10,6 +10,7 @@ import (
 	"github.com/qoppa-tech/toy-gitfed/internal/config"
 	"github.com/qoppa-tech/toy-gitfed/internal/database"
 	"github.com/qoppa-tech/toy-gitfed/internal/database/sqlc"
+	gitmod "github.com/qoppa-tech/toy-gitfed/internal/modules/git"
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/organization"
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/session"
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/sso"
@@ -56,10 +57,12 @@ func main() {
 	ssoSvc := sso.NewService(ssoStore, ssoStateStore, cfg.Google)
 	totpSvc := session.NewTOTPService(redisStore, cfg.TOTPIssuer)
 	orgSvc := organization.NewService(orgStore)
+	gitSvc := gitmod.NewService(reposDir)
 
 	srv := githttp.NewServer(githttp.Config{
 		ReposDir:       reposDir,
 		Address:        cfg.HTTPAddr,
+		GitService:     gitSvc,
 		UserService:    userSvc,
 		SessionService: sessionSvc,
 		SSOService:     ssoSvc,

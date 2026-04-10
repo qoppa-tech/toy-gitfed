@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,7 +26,7 @@ func newTestService(t *testing.T) (*Service, string) {
 	return NewService(dir), dir
 }
 
-func newClonedRepo(t *testing.T, svc *Service, name string) Repository {
+func newClonedRepo(t *testing.T, svc *Service, name string) GitRepository {
 	t.Helper()
 	path := filepath.Join(svc.reposDir, name)
 	g, err := git.PlainClone(path, &git.CloneOptions{
@@ -38,7 +37,7 @@ func newClonedRepo(t *testing.T, svc *Service, name string) Repository {
 		t.Fatalf("PlainClone(%q) error = %v", name, err)
 	}
 	g.Close()
-	return Repository{Name: name}
+	return GitRepository{Name: name}
 }
 
 func TestValidateRepoName(t *testing.T) {
@@ -327,7 +326,7 @@ func TestService_Exists(t *testing.T) {
 	})
 
 	t.Run("returns false for nonexistent repo", func(t *testing.T) {
-		repo := Repository{Name: "does-not-exist"}
+		repo := GitRepository{Name: "does-not-exist"}
 		if svc.Exists(repo) {
 			t.Error("Exists() should return false for nonexistent repo")
 		}
@@ -337,171 +336,11 @@ func TestService_Exists(t *testing.T) {
 func TestService_RepoPath(t *testing.T) {
 	svc, dir := newTestService(t)
 
-	repo := Repository{Name: "test-repo"}
+	repo := GitRepository{Name: "test-repo"}
 	got := svc.RepoPath(repo)
 	want := dir + "/test-repo"
 	if got != want {
 		t.Errorf("RepoPath() = %q, want %q", got, want)
-	}
-}
-
-func TestSmartHTTPHandler_InfoRefs(t *testing.T) {
-	svc, _ := newTestService(t)
-	newClonedRepo(t, svc, "http-test-repo-cloned")
-
-	handler := NewSmartHTTPHandler(svc)
-
-	t.Run("GET info/refs for upload-pack", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/http-test-repo-cloned/info/refs?service=git-upload-pack", nil)
-		rec := httptest.NewRecorder()
-
-		handler.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusOK {
-			t.Errorf("info/refs status = %d, want %d, body: %s", rec.Code, http.StatusOK, rec.Body.String())
-		}
-
-		ct := rec.Header().Get("Content-Type")
-		wantCT := "application/x-git-upload-pack-advertisement"
-		if ct != wantCT {
-			t.Errorf("Content-Type = %q, want %q", ct, wantCT)
-		}
-	})
-
-	t.Run("GET info/refs for receive-pack", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/http-test-repo-cloned/info/refs?service=git-receive-pack", nil)
-		rec := httptest.NewRecorder()
-
-		handler.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusOK {
-			t.Errorf("info/refs status = %d, want %d, body: %s", rec.Code, http.StatusOK, rec.Body.String())
-		}
-
-		ct := rec.Header().Get("Content-Type")
-		wantCT := "application/x-git-receive-pack-advertisement"
-		if ct != wantCT {
-			t.Errorf("Content-Type = %q, want %q", ct, wantCT)
-		}
-	})
-
-	t.Run("GET info/refs for nonexistent repo", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/nonexistent/info/refs?service=git-upload-pack", nil)
-		rec := httptest.NewRecorder()
-
-		handler.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("info/refs status = %d, want %d", rec.Code, http.StatusNotFound)
-		}
-	})
-
-	t.Run("GET info/refs without service param", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/http-test-repo-cloned/info/refs", nil)
-		rec := httptest.NewRecorder()
-
-		handler.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("info/refs status = %d, want %d", rec.Code, http.StatusNotFound)
-		}
-	})
-
-	t.Run("GET info/refs with invalid service", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/http-test-repo-cloned/info/refs?service=invalid", nil)
-		rec := httptest.NewRecorder()
-
-		handler.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("info/refs status = %d, want %d", rec.Code, http.StatusNotFound)
-		}
-	})
-}
-
-func TestSmartHTTPHandler_UploadPack(t *testing.T) {
-	svc, _ := newTestService(t)
-	newClonedRepo(t, svc, "upload-pack-repo-cloned")
-
-	handler := NewSmartHTTPHandler(svc)
-
-	t.Run("POST git-upload-pack with invalid content-type", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/upload-pack-repo-cloned/git-upload-pack", bytes.NewReader([]byte{}))
-		req.Header.Set("Content-Type", "text/plain")
-		rec := httptest.NewRecorder()
-
-		handler.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("upload-pack status = %d, want %d", rec.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("POST git-upload-pack for nonexistent repo", func(t *testing.T) {
-		body := []byte("0000")
-		req := httptest.NewRequest("POST", "/nonexistent/git-upload-pack", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/x-git-upload-pack-request")
-		rec := httptest.NewRecorder()
-
-		handler.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("upload-pack status = %d, want %d", rec.Code, http.StatusNotFound)
-		}
-	})
-}
-
-func TestSmartHTTPHandler_ReceivePack(t *testing.T) {
-	svc, _ := newTestService(t)
-	newClonedRepo(t, svc, "receive-pack-repo-cloned")
-
-	handler := NewSmartHTTPHandler(svc)
-
-	t.Run("POST git-receive-pack with invalid content-type", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/receive-pack-repo-cloned/git-receive-pack", bytes.NewReader([]byte{}))
-		req.Header.Set("Content-Type", "text/plain")
-		rec := httptest.NewRecorder()
-
-		handler.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("receive-pack status = %d, want %d", rec.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("POST git-receive-pack for nonexistent repo", func(t *testing.T) {
-		body := []byte("0000")
-		req := httptest.NewRequest("POST", "/nonexistent/git-receive-pack", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/x-git-receive-pack-request")
-		rec := httptest.NewRecorder()
-
-		handler.ServeHTTP(rec, req)
-
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("receive-pack status = %d, want %d", rec.Code, http.StatusNotFound)
-		}
-	})
-}
-
-func TestSmartHTTPHandler_Mount(t *testing.T) {
-	svc, _ := newTestService(t)
-	handler := NewSmartHTTPHandler(svc)
-
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	if mux == nil {
-		t.Error("Mount() should not panic")
-	}
-}
-
-func TestSmartHTTPHandler_ServeMux(t *testing.T) {
-	svc, _ := newTestService(t)
-	handler := NewSmartHTTPHandler(svc)
-
-	mux := handler.ServeMux()
-	if mux == nil {
-		t.Error("ServeMux() should return non-nil mux")
 	}
 }
 
