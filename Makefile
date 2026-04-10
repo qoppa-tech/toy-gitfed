@@ -2,10 +2,13 @@ test:
 	@go test ./... -v -cover
 
 build:
-	@go build -o ./bin/main ./cmd/main.go
+	@go build -o ./bin/http-api ./cmd/http-api
 
 clean:
-	@rm -f ./bin/main
+	@rm -f ./bin/http-api
+
+sqlc:
+	@sqlc generate
 
 lint:
 	@go vet ./...
@@ -21,4 +24,4 @@ compose-down:
 
 ci: lint test build-image
 
-.PHONY: test build clean lint build-image compose-up compose-down ci
+.PHONY: test build clean lint build-image compose-up compose-down ci migrate-up

@@ -9,10 +9,10 @@
 //
 // Supported endpoints:
 //
-//	GET  /<repo>/info/refs?service=git-upload-pack
-//	GET  /<repo>/info/refs?service=git-receive-pack
-//	POST /<repo>/git-upload-pack
-//	POST /<repo>/git-receive-pack
+//	GET  /{repo...}/info/refs?service=git-upload-pack
+//	GET  /{repo...}/info/refs?service=git-receive-pack
+//	POST /{repo...}/git-upload-pack
+//	POST /{repo...}/git-receive-pack
 package http
 
 import (
@@ -27,6 +27,11 @@ import (
 	"github.com/go-git/go-billy/v6/osfs"
 	githttp "github.com/go-git/go-git/v6/backend/http"
 	"github.com/go-git/go-git/v6/plumbing/transport"
+
+	"github.com/qoppa-tech/toy-gitfed/internal/modules/organization"
+	"github.com/qoppa-tech/toy-gitfed/internal/modules/session"
+	"github.com/qoppa-tech/toy-gitfed/internal/modules/sso"
+	"github.com/qoppa-tech/toy-gitfed/internal/modules/user"
 )
 
 // Config holds the server configuration.
@@ -35,23 +40,107 @@ type Config struct {
 	ReposDir string
 	// TCP address to listen on (e.g. "0.0.0.0:8080").
 	Address string
+
+	// Domain services.
+	UserService    *user.Service
+	SessionService *session.Service
+	SSOService     *sso.Service
+	TOTPService    *session.TOTPService
+	OrgService     *organization.Service
+
+	// Secure controls whether cookies use the Secure flag.
+	Secure bool
 }
 
 // Server is the Git Smart HTTP server.
 type Server struct {
-	config  Config
-	handler *githttp.Backend
+	config     Config
+	gitHandler *githttp.Backend
+	mux        *http.ServeMux
 }
 
 // NewServer creates a new Server with the given configuration.
 func NewServer(config Config) *Server {
 	fs := osfs.New(config.ReposDir)
 	loader := transport.NewFilesystemLoader(fs, false)
-	handler := githttp.NewBackend(loader)
-	return &Server{
-		config:  config,
-		handler: handler,
+	gitHandler := githttp.NewBackend(loader)
+
+	s := &Server{
+		config:     config,
+		gitHandler: gitHandler,
+		mux:        http.NewServeMux(),
 	}
+
+	s.registerAuthRoutes()
+	s.registerGitRoutes()
+	return s
+}
+
+func (s *Server) registerAuthRoutes() {
+	authMw := Auth(s.config.SessionService)
+
+	userPresenter := NewUserPresenter(s.config.UserService)
+	sessionPresenter := NewSessionPresenter(s.config.SessionService, s.config.UserService)
+	sessionPresenter.SetSecure(s.config.Secure)
+	ssoPresenter := NewSSOPresenter(s.config.SSOService, s.config.UserService, s.config.SessionService)
+	ssoPresenter.SetSecure(s.config.Secure)
+	totpPresenter := NewTOTPPresenter(s.config.TOTPService)
+
+	userPresenter.RegisterRoutes(s.mux)
+	sessionPresenter.RegisterRoutes(s.mux)
+	ssoPresenter.RegisterRoutes(s.mux)
+	totpPresenter.RegisterRoutes(s.mux, authMw)
+}
+
+func (s *Server) registerGitRoutes() {
+	// Method-specific catch-alls. More specific auth routes take precedence.
+	s.mux.HandleFunc("GET /{path...}", s.handleGitGet)
+	s.mux.HandleFunc("POST /{path...}", s.handleGitPost)
+}
+
+func (s *Server) handleGitGet(w http.ResponseWriter, r *http.Request) {
+	path := r.PathValue("path")
+	repo, ok := strings.CutSuffix(path, "/info/refs")
+	if !ok || repo == "" {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return
+	}
+	if !strings.HasPrefix(r.URL.Query().Get("service"), "git-") {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return
+	}
+	s.serveGit(w, r, repo)
+}
+
+func (s *Server) handleGitPost(w http.ResponseWriter, r *http.Request) {
+	path := r.PathValue("path")
+
+	var repo string
+	switch {
+	case strings.HasSuffix(path, "/git-upload-pack"):
+		repo, _ = strings.CutSuffix(path, "/git-upload-pack")
+	case strings.HasSuffix(path, "/git-receive-pack"):
+		repo, _ = strings.CutSuffix(path, "/git-receive-pack")
+	}
+	if repo == "" {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return
+	}
+	s.serveGit(w, r, repo)
+}
+
+func (s *Server) serveGit(w http.ResponseWriter, r *http.Request, repo string) {
+	repoPath := filepath.Join(s.config.ReposDir, repo)
+	if _, err := os.Stat(repoPath); os.IsNotExist(err) {
+		http.Error(w, "Repository Not Found", http.StatusNotFound)
+		return
+	}
+	s.gitHandler.ServeHTTP(w, r)
+}
+
+// ServeHTTP implements http.Handler.
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.mux.ServeHTTP(w, r)
 }
 
 // Serve binds to the configured address and blocks, handling connections.
@@ -62,109 +151,4 @@ func (s *Server) Serve() error {
 	}
 	log.Printf("git http server listening on %s", s.config.Address)
 	return http.Serve(ln, s)
-}
-
-// ServeHTTP implements http.Handler.
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	parsed := parseGitURL(r.URL.Path, r.URL.RawQuery)
-	if parsed == nil {
-		http.Error(w, "Not Found", http.StatusNotFound)
-		return
-	}
-
-	wantMethod := "GET"
-	if parsed.Service == uploadPack || parsed.Service == receivePack {
-		wantMethod = "POST"
-	}
-	if r.Method != wantMethod {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Verify the repository exists on disk.
-	repoPath := filepath.Join(s.config.ReposDir, parsed.Repo)
-	if _, err := os.Stat(repoPath); os.IsNotExist(err) {
-		http.Error(w, "Repository Not Found", http.StatusNotFound)
-		return
-	}
-
-	// Construct the URL path expected by the go-git handler.
-	var suffix string
-	switch parsed.Service {
-	case infoRefs:
-		suffix = "/info/refs"
-	case uploadPack:
-		suffix = "/git-upload-pack"
-	case receivePack:
-		suffix = "/git-receive-pack"
-	}
-	r.URL.Path = "/" + parsed.Repo + suffix
-
-	// Delegate to the go-git backend handler.
-	s.handler.ServeHTTP(w, r)
-}
-
-// gitService identifies which Git Smart HTTP endpoint is being requested.
-type gitService int
-
-const (
-	infoRefs gitService = iota
-	uploadPack
-	receivePack
-)
-
-func (s gitService) responseContentType() string {
-	switch s {
-	case infoRefs:
-		return "application/x-git-upload-pack-advertisement"
-	case uploadPack:
-		return "application/x-git-upload-pack-result"
-	case receivePack:
-		return "application/x-git-receive-pack-result"
-	default:
-		return "application/octet-stream"
-	}
-}
-
-type parsedURL struct {
-	Repo    string
-	Service gitService
-	Query   string
-}
-
-// parseGitURL parses a Git Smart HTTP URL target into its components.
-func parseGitURL(path, query string) *parsedURL {
-	if len(path) < 2 || path[0] != '/' {
-		return nil
-	}
-	p := path[1:] // strip leading '/'
-
-	if strings.HasSuffix(p, "/info/refs") {
-		repo := p[:len(p)-len("/info/refs")]
-		if repo == "" {
-			return nil
-		}
-		if !strings.HasPrefix(query, "service=git-") {
-			return nil
-		}
-		return &parsedURL{Repo: repo, Service: infoRefs, Query: query}
-	}
-
-	if strings.HasSuffix(p, "/git-upload-pack") {
-		repo := p[:len(p)-len("/git-upload-pack")]
-		if repo == "" {
-			return nil
-		}
-		return &parsedURL{Repo: repo, Service: uploadPack}
-	}
-
-	if strings.HasSuffix(p, "/git-receive-pack") {
-		repo := p[:len(p)-len("/git-receive-pack")]
-		if repo == "" {
-			return nil
-		}
-		return &parsedURL{Repo: repo, Service: receivePack}
-	}
-
-	return nil
 }
