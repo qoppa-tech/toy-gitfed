@@ -28,6 +28,10 @@ migrate-up:
 	@echo "Run: psql -d gitfed -f migrations/schema/003_sessions.sql"
 	@echo "Run: psql -d gitfed -f migrations/schema/004_sso.sql"
 
-ci: lint test build-image
+test-integration:
+	@docker compose -f docker-compose.test.yml up -d --wait
+	@go test ./... -v -cover; ret=$$?; docker compose -f docker-compose.test.yml down; exit $$ret
 
-.PHONY: test build clean lint build-image compose-up compose-down sqlc migrate-up ci
+ci: lint test-integration build-image
+
+.PHONY: test build clean lint build-image compose-up compose-down sqlc migrate-up test-integration ci
