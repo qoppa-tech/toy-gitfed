@@ -3,11 +3,18 @@ package ratelimit
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
+
+func scriptPath() string {
+	_, file, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(file), "..", "..", "scripts", "rate_limit.lua")
+}
 
 func testRedisClient(t *testing.T) *redis.Client {
 	t.Helper()
@@ -28,7 +35,7 @@ func testRedisClient(t *testing.T) *redis.Client {
 
 func TestLimiter_Allow(t *testing.T) {
 	client := testRedisClient(t)
-	limiter := NewLimiter(client, "../../scripts/rate_limit.lua")
+	limiter := NewLimiter(client, scriptPath())
 
 	ctx := context.Background()
 	key := "rl:test:allow"
@@ -59,7 +66,7 @@ func TestLimiter_Allow(t *testing.T) {
 
 func TestLimiter_Refill(t *testing.T) {
 	client := testRedisClient(t)
-	limiter := NewLimiter(client, "../../scripts/rate_limit.lua")
+	limiter := NewLimiter(client, scriptPath())
 
 	ctx := context.Background()
 	key := "rl:test:refill"
@@ -97,7 +104,7 @@ func TestLimiter_Refill(t *testing.T) {
 
 func TestLimiter_BurstExhaustion(t *testing.T) {
 	client := testRedisClient(t)
-	limiter := NewLimiter(client, "../../scripts/rate_limit.lua")
+	limiter := NewLimiter(client, scriptPath())
 
 	ctx := context.Background()
 	key := "rl:test:exhaustion"
