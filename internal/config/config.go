@@ -5,6 +5,7 @@ import (
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/sso"
 	"github.com/qoppa-tech/toy-gitfed/internal/store"
 	"github.com/qoppa-tech/toy-gitfed/pkg/env"
+	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
 )
 
 type RateLimitConfig struct {
@@ -19,6 +20,7 @@ type Config struct {
 	Redis     store.RedisConfig
 	Google    sso.GoogleConfig
 	RateLimit RateLimitConfig
+	Log       logger.Config
 
 	HTTPAddr      string
 	TOTPIssuer    string
@@ -51,6 +53,10 @@ func Load() Config {
 			IPBurst:   env.Int("RATE_LIMIT_IP_BURST", 20),
 			UserRate:  env.Int("RATE_LIMIT_USER_RATE", 200),
 			UserBurst: env.Int("RATE_LIMIT_USER_BURST", 40),
+		},
+		Log: logger.Config{
+			Env:   env.Or("ENV", "DEV"),
+			Level: env.Or("LOG_LEVEL", "info"),
 		},
 		HTTPAddr:      env.Or("HTTP_ADDR", "0.0.0.0:8080"),
 		TOTPIssuer:    env.Or("TOTP_ISSUER", "gitfed"),

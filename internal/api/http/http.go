@@ -17,7 +17,6 @@ package http
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -32,6 +31,7 @@ import (
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/session"
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/sso"
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/user"
+	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
 )
 
 // Config holds the server configuration.
@@ -55,6 +55,9 @@ type Config struct {
 	// Rate limiting (nil to disable).
 	IPRateLimit   func(http.Handler) http.Handler
 	UserRateLimit func(http.Handler) http.Handler
+
+	// Logger (nil to disable).
+	Logger logger.Logger
 }
 
 // Server is the Git Smart HTTP server.
@@ -62,6 +65,7 @@ type Server struct {
 	config     Config
 	gitHandler *githttp.Backend
 	mux        *http.ServeMux
+	handler    http.Handler
 }
 
 // NewServer creates a new Server with the given configuration.
@@ -78,6 +82,17 @@ func NewServer(config Config) *Server {
 
 	s.registerAuthRoutes()
 	s.registerGitRoutes()
+
+	// Build handler chain once: logger → IP rate limit → mux.
+	var h http.Handler = s.mux
+	if s.config.IPRateLimit != nil {
+		h = s.config.IPRateLimit(h)
+	}
+	if s.config.Logger != nil {
+		h = logger.Middleware(s.config.Logger)(h)
+	}
+	s.handler = h
+
 	return s
 }
 
@@ -154,11 +169,7 @@ func (s *Server) serveGit(w http.ResponseWriter, r *http.Request, repo string) {
 
 // ServeHTTP implements http.Handler.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var h http.Handler = s.mux
-	if s.config.IPRateLimit != nil {
-		h = s.config.IPRateLimit(h)
-	}
-	h.ServeHTTP(w, r)
+	s.handler.ServeHTTP(w, r)
 }
 
 // Serve binds to the configured address and blocks, handling connections.
@@ -167,6 +178,8 @@ func (s *Server) Serve() error {
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
 	}
-	log.Printf("git http server listening on %s", s.config.Address)
+	if s.config.Logger != nil {
+		s.config.Logger.Info("server listening", "address", s.config.Address)
+	}
 	return http.Serve(ln, s)
 }
