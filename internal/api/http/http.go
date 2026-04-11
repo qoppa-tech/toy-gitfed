@@ -27,7 +27,7 @@ import (
 	"github.com/go-git/go-billy/v6/osfs"
 	githttp "github.com/go-git/go-git/v6/backend/http"
 	"github.com/go-git/go-git/v6/plumbing/transport"
-
+	"github.com/qoppa-tech/toy-gitfed/internal/modules/git"
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/organization"
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/session"
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/sso"
@@ -42,6 +42,7 @@ type Config struct {
 	Address string
 
 	// Domain services.
+	GitService     *git.Service
 	UserService    *user.Service
 	SessionService *session.Service
 	SSOService     *sso.Service
