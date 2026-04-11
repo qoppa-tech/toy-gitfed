@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -10,16 +11,21 @@ type defaultLogger struct {
 	slog *slog.Logger
 }
 
-// New creates a Logger from the given Config.
-func New(cfg Config) Logger {
+// NewWithWriter creates a Logger writing to w. Useful for testing.
+func NewWithWriter(w io.Writer, cfg Config) Logger {
 	level := parseLevel(cfg.Level)
 	var handler slog.Handler
 	if strings.EqualFold(cfg.Env, "PROD") {
-		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+		handler = slog.NewJSONHandler(w, &slog.HandlerOptions{Level: level})
 	} else {
-		handler = newDevHandler(os.Stdout, level)
+		handler = newDevHandler(w, level)
 	}
 	return &defaultLogger{slog: slog.New(handler)}
+}
+
+// New creates a Logger from the given Config. Output goes to stdout.
+func New(cfg Config) Logger {
+	return NewWithWriter(os.Stdout, cfg)
 }
 
 func (l *defaultLogger) Debug(msg string, args ...any) { l.slog.Debug(msg, args...) }
