@@ -2,13 +2,16 @@ package ratelimit
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
-	"os"
 	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
+
+//go:embed rate_limit.lua
+var rateLimitScript string
 
 // Limiter implements token bucket rate limiting backed by a Redis Lua script.
 type Limiter struct {
@@ -16,15 +19,11 @@ type Limiter struct {
 	script *redis.Script
 }
 
-// NewLimiter creates a Limiter by loading the Lua script at scriptPath.
-func NewLimiter(client *redis.Client, scriptPath string) *Limiter {
-	src, err := os.ReadFile(scriptPath)
-	if err != nil {
-		panic(fmt.Sprintf("ratelimit: read script %s: %v", scriptPath, err))
-	}
+// NewLimiter creates a Limiter using the embedded Lua script.
+func NewLimiter(client *redis.Client) *Limiter {
 	return &Limiter{
 		client: client,
-		script: redis.NewScript(string(src)),
+		script: redis.NewScript(rateLimitScript),
 	}
 }
 

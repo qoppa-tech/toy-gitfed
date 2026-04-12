@@ -35,7 +35,15 @@ func testRedisClient(t *testing.T) *redis.Client {
 
 func TestLimiter_Allow(t *testing.T) {
 	client := testRedisClient(t)
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
 	limiter := NewLimiter(client, scriptPath())
+=======
+	limiter := NewLimiter(client)
+>>>>>>> Stashed changes
+=======
+	limiter := NewLimiter(client)
+>>>>>>> Stashed changes
 
 	ctx := context.Background()
 	key := "rl:test:allow"
@@ -66,7 +74,15 @@ func TestLimiter_Allow(t *testing.T) {
 
 func TestLimiter_Refill(t *testing.T) {
 	client := testRedisClient(t)
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
 	limiter := NewLimiter(client, scriptPath())
+=======
+	limiter := NewLimiter(client)
+>>>>>>> Stashed changes
+=======
+	limiter := NewLimiter(client)
+>>>>>>> Stashed changes
 
 	ctx := context.Background()
 	key := "rl:test:refill"
@@ -104,7 +120,15 @@ func TestLimiter_Refill(t *testing.T) {
 
 func TestLimiter_BurstExhaustion(t *testing.T) {
 	client := testRedisClient(t)
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
 	limiter := NewLimiter(client, scriptPath())
+=======
+	limiter := NewLimiter(client)
+>>>>>>> Stashed changes
+=======
+	limiter := NewLimiter(client)
+>>>>>>> Stashed changes
 
 	ctx := context.Background()
 	key := "rl:test:exhaustion"
