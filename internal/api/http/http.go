@@ -42,6 +42,7 @@ type Config struct {
 	Address string
 
 	// Domain services.
+	RepoStore      git.Repository
 	GitService     *git.Service
 	UserService    *user.Service
 	SessionService *session.Service
@@ -86,11 +87,15 @@ func (s *Server) registerAuthRoutes() {
 	ssoPresenter := NewSSOPresenter(s.config.SSOService, s.config.UserService, s.config.SessionService)
 	ssoPresenter.SetSecure(s.config.Secure)
 	totpPresenter := NewTOTPPresenter(s.config.TOTPService)
+	organizationPresenter := NewOrganizationPresenter(s.config.OrgService)
+	repositoryPresenter := NewRepositoryPresenter(s.config.RepoStore, s.config.GitService)
 
 	userPresenter.RegisterRoutes(s.mux)
 	sessionPresenter.RegisterRoutes(s.mux)
 	ssoPresenter.RegisterRoutes(s.mux)
 	totpPresenter.RegisterRoutes(s.mux, authMw)
+	organizationPresenter.RegisterRoutes(s.mux, authMw)
+	repositoryPresenter.RegisterRoutes(s.mux, authMw)
 }
 
 func (s *Server) registerGitRoutes() {
@@ -131,12 +136,57 @@ func (s *Server) handleGitPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serveGit(w http.ResponseWriter, r *http.Request, repo string) {
-	repoPath := filepath.Join(s.config.ReposDir, repo)
+	repoPath, ok := secureRepoPath(s.config.ReposDir, repo)
+	if !ok {
+		http.Error(w, "Repository Not Found", http.StatusNotFound)
+		return
+	}
+
 	if _, err := os.Stat(repoPath); os.IsNotExist(err) {
 		http.Error(w, "Repository Not Found", http.StatusNotFound)
 		return
 	}
 	s.gitHandler.ServeHTTP(w, r)
+}
+
+func secureRepoPath(reposDir, repo string) (string, bool) {
+	if repo == "" || filepath.IsAbs(repo) {
+		return "", false
+	}
+
+	cleanRepo := filepath.Clean(repo)
+	if cleanRepo == "." || cleanRepo == ".." || strings.HasPrefix(cleanRepo, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+
+	baseAbs, err := filepath.Abs(reposDir)
+	if err != nil {
+		return "", false
+	}
+	baseReal, err := filepath.EvalSymlinks(baseAbs)
+	if err != nil {
+		return "", false
+	}
+
+	repoAbs, err := filepath.Abs(filepath.Join(baseAbs, cleanRepo))
+	if err != nil {
+		return "", false
+	}
+
+	if repoAbs != baseAbs && !strings.HasPrefix(repoAbs, baseAbs+string(filepath.Separator)) {
+		return "", false
+	}
+
+	repoReal, err := filepath.EvalSymlinks(repoAbs)
+	if err == nil {
+		if repoReal != baseReal && !strings.HasPrefix(repoReal, baseReal+string(filepath.Separator)) {
+			return "", false
+		}
+	} else if !os.IsNotExist(err) {
+		return "", false
+	}
+
+	return repoAbs, true
 }
 
 // ServeHTTP implements http.Handler.

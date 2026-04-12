@@ -32,6 +32,10 @@ func (s *Store) Create(ctx context.Context, org Organization) (Organization, err
 	return fromSqlcOrg(row), nil
 }
 
+func (s *Store) DeleteByID(ctx context.Context, id uuid.UUID) error {
+	return s.q.DeleteOrganizationByID(ctx, toPgUUID(id))
+}
+
 func (s *Store) GetByID(ctx context.Context, id uuid.UUID) (Organization, error) {
 	row, err := s.q.GetOrganizationByID(ctx, toPgUUID(id))
 	if err != nil {

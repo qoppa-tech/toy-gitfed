@@ -24,4 +24,13 @@ compose-down:
 
 ci: lint test build-image
 
-.PHONY: test build clean lint build-image compose-up compose-down ci migrate-up
+test-e2e:
+	@go test ./e2e -v
+
+test-e2e-auth:
+	@go test ./e2e -v -run 'TestE2E/TestAuthSessionLifecycle'
+
+test-e2e-git:
+	@go test ./e2e -v -run 'TestE2E/TestGit'
+
+.PHONY: test build clean lint build-image compose-up compose-down ci migrate-up test-e2e test-e2e-auth test-e2e-git

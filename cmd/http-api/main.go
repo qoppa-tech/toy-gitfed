@@ -50,6 +50,7 @@ func main() {
 	ssoStore := sso.NewPGStore(queries)
 	ssoStateStore := sso.NewRedisStateStore(redisStore)
 	orgStore := organization.NewStore(queries)
+	repoStore := gitmod.NewStore(queries)
 
 	// Domain services.
 	userSvc := user.NewService(userStore)
@@ -62,6 +63,7 @@ func main() {
 	srv := githttp.NewServer(githttp.Config{
 		ReposDir:       reposDir,
 		Address:        cfg.HTTPAddr,
+		RepoStore:      repoStore,
 		GitService:     gitSvc,
 		UserService:    userSvc,
 		SessionService: sessionSvc,

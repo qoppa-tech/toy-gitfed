@@ -8,6 +8,7 @@ import (
 
 type Repository interface {
 	Create(ctx context.Context, org Organization) (Organization, error)
+	DeleteByID(ctx context.Context, id uuid.UUID) error
 	GetByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	AddUser(ctx context.Context, orgID, userID uuid.UUID) error
 	RemoveUser(ctx context.Context, orgID, userID uuid.UUID) error

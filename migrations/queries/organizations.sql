@@ -7,6 +7,10 @@ RETURNING *;
 SELECT * FROM organizations
 WHERE organization_id = $1;
 
+-- name: DeleteOrganizationByID :exec
+DELETE FROM organizations
+WHERE organization_id = $1;
+
 -- name: AddUserToOrganization :exec
 INSERT INTO organization_users (organization_id, user_id)
 VALUES ($1, $2);

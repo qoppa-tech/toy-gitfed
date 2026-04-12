@@ -201,6 +201,18 @@ func TestServeHTTP_ErrorCases(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+	escapeRoot := t.TempDir()
+	escapeRepoPath := filepath.Join(escapeRoot, "escape.git")
+	if err := os.MkdirAll(escapeRepoPath, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := runGit(escapeRepoPath, "init", "--bare"); err != nil {
+		t.Skipf("git not available: %v", err)
+	}
+	if err := os.Symlink(escapeRepoPath, filepath.Join(tmpDir, "escape.git")); err != nil {
+		t.Fatalf("create symlink: %v", err)
+	}
+
 	srv := NewServer(Config{ReposDir: tmpDir, Address: "127.0.0.1:0", GitService: git.NewService(tmpDir)})
 
 	tests := []struct {
@@ -218,6 +230,18 @@ func TestServeHTTP_ErrorCases(t *testing.T) {
 		{
 			name:       "Unknown path",
 			url:        "/random/path",
+			method:     http.MethodGet,
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "Path traversal repository blocked",
+			url:        "/%2e%2e/etc/info/refs?service=git-upload-pack",
+			method:     http.MethodGet,
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "Symlink escape repository blocked",
+			url:        "/escape.git/info/refs?service=git-upload-pack",
 			method:     http.MethodGet,
 			wantStatus: http.StatusNotFound,
 		},
