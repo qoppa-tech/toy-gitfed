@@ -15,6 +15,8 @@ WORKDIR /srv
 COPY --from=builder /app /srv/app
 COPY --from=builder /build/scripts /srv/scripts
 
+ENV REPOS_DIR=/data/repos
+
 EXPOSE 8080
 
 ENTRYPOINT ["/srv/app", "/data/repos"]

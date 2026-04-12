@@ -13,7 +13,7 @@ import (
 
 // AllowFunc is the signature matching Limiter.Allow, used to decouple
 // middleware from the concrete Limiter for testing.
-type AllowFunc func(ctx context.Context, key string, rate float64, burst int) (bool, time.Duration, error)
+type AllowFunc func(ctx context.Context, key string, rate float64, burst int) (bool, int, time.Duration, error)
 
 // UserIDExtractor returns the authenticated user's string ID from the request
 // context. Returns ("", false) for anonymous requests. This avoids coupling
@@ -28,12 +28,13 @@ func IPMiddleware(allow AllowFunc, ratePerMin int, burst int) func(http.Handler)
 			ip := clientIP(r)
 			key := "rl:ip:" + ip
 
-			allowed, retryAfter, err := allow(r.Context(), key, ratePerSec, burst)
+			allowed, remaining, retryAfter, err := allow(r.Context(), key, ratePerSec, burst)
 			if err != nil {
 				// If Redis is down, let the request through.
 				next.ServeHTTP(w, r)
 				return
 			}
+			writeRateLimitHeaders(w, burst, remaining)
 			if !allowed {
 				writeLimited(w, retryAfter)
 				return
@@ -56,11 +57,12 @@ func UserMiddleware(allow AllowFunc, extract UserIDExtractor, ratePerMin int, bu
 			}
 			key := "rl:user:" + uid
 
-			allowed, retryAfter, err := allow(r.Context(), key, ratePerSec, burst)
+			allowed, remaining, retryAfter, err := allow(r.Context(), key, ratePerSec, burst)
 			if err != nil {
 				next.ServeHTTP(w, r)
 				return
 			}
+			writeRateLimitHeaders(w, burst, remaining)
 			if !allowed {
 				writeLimited(w, retryAfter)
 				return
@@ -70,13 +72,17 @@ func UserMiddleware(allow AllowFunc, extract UserIDExtractor, ratePerMin int, bu
 	}
 }
 
+func writeRateLimitHeaders(w http.ResponseWriter, limit int, remaining int) {
+	w.Header().Set("X-RateLimit-Limit", strconv.Itoa(limit))
+	w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
+}
+
 func writeLimited(w http.ResponseWriter, retryAfter time.Duration) {
 	secs := int(math.Ceil(retryAfter.Seconds()))
 	if secs < 1 {
 		secs = 1
 	}
 	w.Header().Set("Retry-After", strconv.Itoa(secs))
-	w.Header().Set("X-RateLimit-Remaining", "0")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusTooManyRequests)
 	json.NewEncoder(w).Encode(map[string]string{"error": "rate limit exceeded"})

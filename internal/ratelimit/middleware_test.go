@@ -11,15 +11,16 @@ import (
 
 type stubLimiter struct {
 	allowed    bool
+	remaining  int
 	retryAfter time.Duration
 }
 
-func (s *stubLimiter) allow(_ context.Context, _ string, _ float64, _ int) (bool, time.Duration, error) {
-	return s.allowed, s.retryAfter, nil
+func (s *stubLimiter) allow(_ context.Context, _ string, _ float64, _ int) (bool, int, time.Duration, error) {
+	return s.allowed, s.remaining, s.retryAfter, nil
 }
 
 func TestIPMiddleware_Allowed(t *testing.T) {
-	stub := &stubLimiter{allowed: true}
+	stub := &stubLimiter{allowed: true, remaining: 15}
 	mw := IPMiddleware(stub.allow, 100, 20)
 
 	called := false
@@ -39,10 +40,16 @@ func TestIPMiddleware_Allowed(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
 	}
+	if rl := w.Header().Get("X-RateLimit-Limit"); rl != "20" {
+		t.Errorf("X-RateLimit-Limit = %q, want %q", rl, "20")
+	}
+	if rr := w.Header().Get("X-RateLimit-Remaining"); rr != "15" {
+		t.Errorf("X-RateLimit-Remaining = %q, want %q", rr, "15")
+	}
 }
 
 func TestIPMiddleware_Denied(t *testing.T) {
-	stub := &stubLimiter{allowed: false, retryAfter: 3 * time.Second}
+	stub := &stubLimiter{allowed: false, remaining: 0, retryAfter: 3 * time.Second}
 	mw := IPMiddleware(stub.allow, 100, 20)
 
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -60,6 +67,12 @@ func TestIPMiddleware_Denied(t *testing.T) {
 	if ra := w.Header().Get("Retry-After"); ra != "3" {
 		t.Errorf("Retry-After = %q, want %q", ra, "3")
 	}
+	if rl := w.Header().Get("X-RateLimit-Limit"); rl != "20" {
+		t.Errorf("X-RateLimit-Limit = %q, want %q", rl, "20")
+	}
+	if rr := w.Header().Get("X-RateLimit-Remaining"); rr != "0" {
+		t.Errorf("X-RateLimit-Remaining = %q, want %q", rr, "0")
+	}
 
 	var body map[string]string
 	json.NewDecoder(w.Body).Decode(&body)
@@ -70,9 +83,9 @@ func TestIPMiddleware_Denied(t *testing.T) {
 
 func TestIPMiddleware_XForwardedFor(t *testing.T) {
 	var gotKey string
-	fakeFn := func(_ context.Context, key string, _ float64, _ int) (bool, time.Duration, error) {
+	fakeFn := func(_ context.Context, key string, _ float64, _ int) (bool, int, time.Duration, error) {
 		gotKey = key
-		return true, 0, nil
+		return true, 19, 0, nil
 	}
 
 	mw := IPMiddleware(fakeFn, 100, 20)
@@ -101,7 +114,7 @@ func stubExtractor(id string) UserIDExtractor {
 }
 
 func TestUserMiddleware_Allowed(t *testing.T) {
-	stub := &stubLimiter{allowed: true}
+	stub := &stubLimiter{allowed: true, remaining: 30}
 	mw := UserMiddleware(stub.allow, stubExtractor("user-abc-123"), 200, 40)
 
 	called := false
@@ -116,6 +129,12 @@ func TestUserMiddleware_Allowed(t *testing.T) {
 
 	if !called {
 		t.Fatal("handler should be called")
+	}
+	if rl := w.Header().Get("X-RateLimit-Limit"); rl != "40" {
+		t.Errorf("X-RateLimit-Limit = %q, want %q", rl, "40")
+	}
+	if rr := w.Header().Get("X-RateLimit-Remaining"); rr != "30" {
+		t.Errorf("X-RateLimit-Remaining = %q, want %q", rr, "30")
 	}
 }
 
