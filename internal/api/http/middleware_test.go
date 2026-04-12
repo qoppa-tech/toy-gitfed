@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/qoppa-tech/toy-gitfed/internal/ratelimit"
+	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
 )
 
 type mockValidator struct {
@@ -245,6 +247,40 @@ func TestExtractAccessToken_NeitherSet(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	if got := extractAccessToken(req); got != "" {
 		t.Errorf("got %q, want empty", got)
+	}
+}
+
+func TestAuth_EnrichesLoggerWithUserID(t *testing.T) {
+	expectedUID := uuid.MustParse("01020304-0506-0708-090a-0b0c0d0e0f10")
+
+	var buf bytes.Buffer
+	testLog := logger.NewWithWriter(&buf, logger.Config{Env: "PROD", Level: "debug"})
+
+	var capturedLogger logger.Logger
+	mw := Auth(&mockValidator{userID: expectedUID})
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedLogger = logger.FromContext(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	ctx := logger.WithContext(req.Context(), testLog)
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if capturedLogger == nil {
+		t.Fatal("logger not found in context")
+	}
+
+	// Log something with the captured logger to verify user_id is present.
+	capturedLogger.Info("check")
+	var entry map[string]any
+	json.NewDecoder(&buf).Decode(&entry)
+	if entry["user_id"] != expectedUID.String() {
+		t.Errorf("user_id = %v, want %s", entry["user_id"], expectedUID)
 	}
 }
 
