@@ -28,14 +28,14 @@ func testRedisClient(t *testing.T) *redis.Client {
 
 func TestLimiter_Allow(t *testing.T) {
 	client := testRedisClient(t)
-	limiter := NewLimiter(client, "../../scripts/rate_limit.lua")
+	limiter := NewLimiter(client)
 
 	ctx := context.Background()
 	key := "rl:test:allow"
 
 	// Burst of 3 should allow 3 requests immediately.
 	for i := range 3 {
-		allowed, _, err := limiter.Allow(ctx, key, 1.0, 3)
+		allowed, _, _, err := limiter.Allow(ctx, key, 1.0, 3)
 		if err != nil {
 			t.Fatalf("request %d: %v", i, err)
 		}
@@ -45,7 +45,7 @@ func TestLimiter_Allow(t *testing.T) {
 	}
 
 	// 4th request should be denied.
-	allowed, retryAfter, err := limiter.Allow(ctx, key, 1.0, 3)
+	allowed, _, retryAfter, err := limiter.Allow(ctx, key, 1.0, 3)
 	if err != nil {
 		t.Fatalf("request 4: %v", err)
 	}
@@ -59,13 +59,13 @@ func TestLimiter_Allow(t *testing.T) {
 
 func TestLimiter_Refill(t *testing.T) {
 	client := testRedisClient(t)
-	limiter := NewLimiter(client, "../../scripts/rate_limit.lua")
+	limiter := NewLimiter(client)
 
 	ctx := context.Background()
 	key := "rl:test:refill"
 
 	// Drain the bucket (burst=1, rate=10/s).
-	allowed, _, err := limiter.Allow(ctx, key, 10.0, 1)
+	allowed, _, _, err := limiter.Allow(ctx, key, 10.0, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestLimiter_Refill(t *testing.T) {
 	}
 
 	// Should be denied now.
-	allowed, _, err = limiter.Allow(ctx, key, 10.0, 1)
+	allowed, _, _, err = limiter.Allow(ctx, key, 10.0, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestLimiter_Refill(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 
 	// Should be allowed again.
-	allowed, _, err = limiter.Allow(ctx, key, 10.0, 1)
+	allowed, _, _, err = limiter.Allow(ctx, key, 10.0, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,13 +97,13 @@ func TestLimiter_Refill(t *testing.T) {
 
 func TestLimiter_BurstExhaustion(t *testing.T) {
 	client := testRedisClient(t)
-	limiter := NewLimiter(client, "../../scripts/rate_limit.lua")
+	limiter := NewLimiter(client)
 
 	ctx := context.Background()
 	key := "rl:test:exhaustion"
 
 	// With burst=5, first request should be allowed.
-	allowed, _, err := limiter.Allow(ctx, key, 1.0, 5)
+	allowed, _, _, err := limiter.Allow(ctx, key, 1.0, 5)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestLimiter_BurstExhaustion(t *testing.T) {
 	}
 
 	// Next should be denied.
-	allowed, retryAfter, err := limiter.Allow(ctx, key, 1.0, 5)
+	allowed, _, retryAfter, err := limiter.Allow(ctx, key, 1.0, 5)
 	if err != nil {
 		t.Fatal(err)
 	}
