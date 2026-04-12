@@ -36,6 +36,10 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Organization, erro
 	return s.repo.GetByID(ctx, id)
 }
 
+func (s *Service) DeleteByID(ctx context.Context, id uuid.UUID) error {
+	return s.repo.DeleteByID(ctx, id)
+}
+
 func (s *Service) AddUser(ctx context.Context, orgID, userID uuid.UUID) error {
 	return s.repo.AddUser(ctx, orgID, userID)
 }

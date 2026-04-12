@@ -12,8 +12,8 @@ import (
 )
 
 const createRepository = `-- name: CreateRepository :one
-INSERT INTO git_repository (id, name, description, is_private, owner_id, default_ref, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, now(), now())
+INSERT INTO git_repository (id, name, description, is_private, owner_id, default_ref, is_deleted, head, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, false, '', now(), now())
 RETURNING id, name, description, is_private, is_deleted, created_at, updated_at, owner_id, default_ref, head
 `
 
