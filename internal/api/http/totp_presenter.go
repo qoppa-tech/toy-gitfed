@@ -51,7 +51,7 @@ func (p *TOTPPresenter) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req totpVerifyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&req); err != nil || req.Code == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "code is required"})
 		return
 	}
