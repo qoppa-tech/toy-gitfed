@@ -116,7 +116,7 @@ func (s *Server) registerAuthRoutes() {
 	ssoPresenter.SetSecure(s.config.Secure)
 	totpPresenter := NewTOTPPresenter(s.config.TOTPService)
 	organizationPresenter := NewOrganizationPresenter(s.config.OrgService)
-	repositoryPresenter := NewRepositoryPresenter(s.config.RepoStore, s.config.GitService)
+	repositoryPresenter := NewRepositoryPresenter(s.config.RepoStore, s.config.GitService, s.config.Logger)
 
 	userPresenter.RegisterRoutes(s.mux)
 	sessionPresenter.RegisterRoutes(s.mux)

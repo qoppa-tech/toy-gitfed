@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/git"
+	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
 )
 
 type repoTokenValidator struct {
@@ -118,7 +120,8 @@ func (s *fakeRepoStore) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func newRepositoryTestMux(repoStore git.Repository, reposDir string, authUserID uuid.UUID) *http.ServeMux {
-	presenter := NewRepositoryPresenter(repoStore, git.NewService(reposDir))
+	nullLogger := logger.NewWithWriter(io.Discard, logger.Config{Level: "error"})
+	presenter := NewRepositoryPresenter(repoStore, git.NewService(reposDir), nullLogger)
 	mux := http.NewServeMux()
 	presenter.RegisterRoutes(mux, Auth(&repoTokenValidator{userID: authUserID}))
 	return mux

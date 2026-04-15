@@ -3,21 +3,22 @@ package http
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/git"
+	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
 )
 
 type RepositoryPresenter struct {
 	store      git.Repository
 	gitService *git.Service
+	logger     logger.Logger
 }
 
-func NewRepositoryPresenter(store git.Repository, gitService *git.Service) *RepositoryPresenter {
-	return &RepositoryPresenter{store: store, gitService: gitService}
+func NewRepositoryPresenter(store git.Repository, gitService *git.Service, logger logger.Logger) *RepositoryPresenter {
+	return &RepositoryPresenter{store: store, gitService: gitService, logger: logger}
 }
 
 func (p *RepositoryPresenter) RegisterRoutes(mux *http.ServeMux, authMw func(http.Handler) http.Handler) {
@@ -95,7 +96,7 @@ func (p *RepositoryPresenter) Create(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		if rollbackErr := p.store.SoftDelete(r.Context(), repo.ID); rollbackErr != nil {
 			if hardDeleteErr := p.store.Delete(r.Context(), repo.ID); hardDeleteErr != nil {
-				log.Printf("repository rollback failed after git create error: soft-delete=%v hard-delete=%v", rollbackErr, hardDeleteErr)
+				p.logger.Error("repository rollback failed after git create error", "soft_delete_error", rollbackErr, "hard_delete_error", hardDeleteErr)
 			}
 		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
