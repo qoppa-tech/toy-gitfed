@@ -2,8 +2,9 @@ package http
 
 import (
 	"errors"
-	"log"
 	"net/http"
+
+	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
 
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/session"
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/sso"
@@ -56,7 +57,7 @@ func (p *SSOPresenter) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid oauth state"})
 			return
 		}
-		log.Printf("google callback error: %v", err)
+		logger.FromContext(r.Context()).Error("google callback failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "oauth failed"})
 		return
 	}
@@ -72,14 +73,14 @@ func (p *SSOPresenter) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	if err != nil {
-		log.Printf("user lookup/create error: %v", err)
+		logger.FromContext(r.Context()).Error("user lookup failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
 	// Link SSO provider record.
 	if _, err := p.ssoSvc.FindOrCreateSSO(r.Context(), u.ID, sso.ProviderGoogle, info.Name, info.Email); err != nil {
-		log.Printf("sso link error: %v", err)
+		logger.FromContext(r.Context()).Error("sso link failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}

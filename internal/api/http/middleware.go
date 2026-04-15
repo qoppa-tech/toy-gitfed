@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
 )
 
 type contextKey string
@@ -40,6 +41,8 @@ func Auth(validator TokenValidator) func(http.Handler) http.Handler {
 			}
 
 			ctx := context.WithValue(r.Context(), userIDKey, userID)
+			reqLog := logger.FromContext(ctx).With("user_id", userID.String())
+			ctx = logger.WithContext(ctx, reqLog)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
