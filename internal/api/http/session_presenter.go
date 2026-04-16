@@ -10,6 +10,7 @@ import (
 
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/session"
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/user"
+	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
 )
 
 const (
@@ -83,27 +84,34 @@ func (p *SessionPresenter) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := logger.FromContext(r.Context()).With("email", req.Email)
+
 	u, err := p.userSvc.GetByEmail(r.Context(), req.Email)
 	if errors.Is(err, user.ErrNotFound) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
 		return
 	}
 	if err != nil {
+		log.Error("login user lookup failed", "step", "user_lookup", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
+
+	log = log.With("user_id", u.ID.String())
 
 	if err := p.userSvc.VerifyPassword(u.Password, req.Password); err != nil {
 		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
 			return
 		}
+		log.Error("login password verify failed", "step", "password_verify", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
 	pair, err := p.sessionSvc.Create(r.Context(), u.ID)
 	if err != nil {
+		log.Error("login session create failed", "step", "session_create", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
@@ -136,6 +144,7 @@ func (p *SessionPresenter) Refresh(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid or expired refresh token"})
 			return
 		}
+		logger.FromContext(r.Context()).Error("session refresh failed", "step", "session_refresh", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
@@ -159,6 +168,7 @@ func (p *SessionPresenter) Logout(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not found"})
 			return
 		}
+		logger.FromContext(r.Context()).Error("session revoke failed", "step", "session_revoke", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}

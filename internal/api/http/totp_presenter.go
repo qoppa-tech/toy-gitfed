@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/session"
+	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
 )
 
 type TOTPPresenter struct {
@@ -29,6 +30,7 @@ func (p *TOTPPresenter) Setup(w http.ResponseWriter, r *http.Request) {
 
 	result, err := p.totpSvc.Setup(r.Context(), userID.String(), userID.String())
 	if err != nil {
+		logger.FromContext(r.Context()).Error("totp setup failed", "step", "totp_setup", "user_id", userID.String(), "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
@@ -58,6 +60,7 @@ func (p *TOTPPresenter) Verify(w http.ResponseWriter, r *http.Request) {
 
 	valid, err := p.totpSvc.Verify(r.Context(), userID.String(), req.Code)
 	if err != nil {
+		logger.FromContext(r.Context()).Error("totp verify failed", "step", "totp_verify", "user_id", userID.String(), "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}

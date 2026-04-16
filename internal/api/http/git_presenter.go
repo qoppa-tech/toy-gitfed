@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/git"
+	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
 )
 
 type GitPresenter struct {
@@ -52,7 +53,8 @@ func (p *GitPresenter) handleGitGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := p.svc.UploadPack(ctx, req, w, http.NoBody); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("upload-pack: %v", err)})
+		logger.FromContext(ctx).Error("git upload-pack failed", "step", "upload_pack_advert", "repo", repo, "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "upload-pack failed"})
 		return
 	}
 }
@@ -99,7 +101,8 @@ func (p *GitPresenter) handleGitPost(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := p.svc.UploadPack(ctx, req, w, r.Body); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("upload-pack: %v", err)})
+			logger.FromContext(ctx).Error("git upload-pack failed", "step", "upload_pack", "repo", repo, "error", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "upload-pack failed"})
 			return
 		}
 	} else {
@@ -117,7 +120,8 @@ func (p *GitPresenter) handleGitPost(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := p.svc.ReceivePack(ctx, req, w, r.Body); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("receive-pack: %v", err)})
+			logger.FromContext(ctx).Error("git receive-pack failed", "step", "receive_pack", "repo", repo, "error", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "receive-pack failed"})
 			return
 		}
 	}

@@ -145,12 +145,6 @@ func (s *Service) GetRefs(_ context.Context, repo GitRepository) ([]RefInfo, err
 		return nil, fmt.Errorf("walk references: %w", err)
 	}
 
-	fmt.Printf("refs len: %d\n", len(refs))
-
-	for i := 0; i != len(refs); i++ {
-		fmt.Printf("refs : %s; from %s\n", refs[i].Name, repo.Name)
-	}
-
 	return refs, nil
 }
 

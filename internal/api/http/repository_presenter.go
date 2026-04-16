@@ -83,6 +83,7 @@ func (p *RepositoryPresenter) Create(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "repository already exists"})
 			return
 		}
+		p.logger.Error("repository store create failed", "step", "repo_store_create", "repo_name", req.Name, "owner_id", authUserID.String(), "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
@@ -94,9 +95,10 @@ func (p *RepositoryPresenter) Create(w http.ResponseWriter, r *http.Request) {
 		OwnerID:     authUserID,
 		DefaultRef:  req.DefaultRef,
 	}); err != nil {
+		p.logger.Error("git service create failed", "step", "git_create", "repo_id", repo.ID.String(), "repo_name", req.Name, "error", err)
 		if rollbackErr := p.store.SoftDelete(r.Context(), repo.ID); rollbackErr != nil {
 			if hardDeleteErr := p.store.Delete(r.Context(), repo.ID); hardDeleteErr != nil {
-				p.logger.Error("repository rollback failed after git create error", "soft_delete_error", rollbackErr, "hard_delete_error", hardDeleteErr)
+				p.logger.Error("repository rollback failed after git create error", "step", "repo_rollback", "repo_id", repo.ID.String(), "soft_delete_error", rollbackErr, "hard_delete_error", hardDeleteErr)
 			}
 		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
@@ -115,6 +117,7 @@ func (p *RepositoryPresenter) List(w http.ResponseWriter, r *http.Request) {
 
 	repos, err := p.store.ListByOwner(r.Context(), authUserID)
 	if err != nil {
+		p.logger.Error("repository list failed", "step", "repo_list", "owner_id", authUserID.String(), "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
@@ -145,6 +148,7 @@ func (p *RepositoryPresenter) Delete(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "repository not found"})
 			return
 		}
+		p.logger.Error("repository get failed", "step", "repo_get", "repo_id", repoID.String(), "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
@@ -158,6 +162,7 @@ func (p *RepositoryPresenter) Delete(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "repository not found"})
 			return
 		}
+		p.logger.Error("repository soft delete failed", "step", "repo_soft_delete", "repo_id", repoID.String(), "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}

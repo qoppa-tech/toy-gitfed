@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/user"
+	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
 )
 
 const (
@@ -80,6 +81,7 @@ func (p *UserPresenter) Register(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, user.ErrUsernameTaken):
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "username already taken"})
 		default:
+			logger.FromContext(r.Context()).Error("user register failed", "step", "user_register", "email", req.Email, "error", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		}
 		return

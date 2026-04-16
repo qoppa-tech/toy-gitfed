@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/qoppa-tech/toy-gitfed/internal/modules/organization"
+	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
 )
 
 type OrganizationPresenter struct {
@@ -60,16 +61,20 @@ func (p *OrganizationPresenter) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := logger.FromContext(r.Context()).With("auth_user_id", authUserID.String())
+
 	org, err := p.service.Create(r.Context(), organization.CreateInput{
 		Name:        req.Name,
 		Description: req.Description,
 	})
 	if err != nil {
+		log.Error("organization create failed", "step", "org_create", "org_name", req.Name, "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
 	if err := p.ensureCreatorMembership(r.Context(), org.ID, authUserID); err != nil {
+		log.Error("organization creator membership failed", "step", "org_creator_membership", "org_id", org.ID.String(), "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
@@ -86,6 +91,7 @@ func (p *OrganizationPresenter) List(w http.ResponseWriter, r *http.Request) {
 
 	orgs, err := p.service.GetByUserID(r.Context(), authUserID)
 	if err != nil {
+		logger.FromContext(r.Context()).Error("organization list failed", "step", "org_list", "auth_user_id", authUserID.String(), "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
@@ -123,8 +129,14 @@ func (p *OrganizationPresenter) AddUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	log := logger.FromContext(r.Context()).
+		With("auth_user_id", authUserID.String()).
+		With("org_id", orgID.String()).
+		With("target_user_id", userID.String())
+
 	authUserOrgs, err := p.service.GetByUserID(r.Context(), authUserID)
 	if err != nil {
+		log.Error("organization membership lookup failed", "step", "org_auth_lookup", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
@@ -139,6 +151,7 @@ func (p *OrganizationPresenter) AddUser(w http.ResponseWriter, r *http.Request) 
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "organization not found"})
 			return
 		}
+		log.Error("organization add user failed", "step", "org_add_user", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}

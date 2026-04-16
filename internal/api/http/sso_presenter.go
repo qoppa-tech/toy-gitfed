@@ -36,6 +36,7 @@ func (p *SSOPresenter) RegisterRoutes(mux *http.ServeMux) {
 func (p *SSOPresenter) GoogleRedirect(w http.ResponseWriter, r *http.Request) {
 	url, err := p.ssoSvc.GoogleAuthURL(r.Context())
 	if err != nil {
+		logger.FromContext(r.Context()).Error("google auth url failed", "step", "auth_url", "provider", string(sso.ProviderGoogle), "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
