@@ -51,16 +51,20 @@ func (p *SSOPresenter) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log := logger.FromContext(r.Context()).With("provider", string(sso.ProviderGoogle))
+
 	info, err := p.ssoSvc.GoogleCallback(r.Context(), state, code)
 	if err != nil {
 		if errors.Is(err, sso.ErrInvalidState) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid oauth state"})
 			return
 		}
-		logger.FromContext(r.Context()).Error("google callback failed", "error", err)
+		log.Error("sso callback failed", "step", "exchange_code", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "oauth failed"})
 		return
 	}
+
+	log = log.With("email", info.Email)
 
 	// Find existing user by email or create one.
 	u, err := p.userSvc.GetByEmail(r.Context(), info.Email)
@@ -71,16 +75,22 @@ func (p *SSOPresenter) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 			Password: "",
 			Email:    info.Email,
 		})
-	}
-	if err != nil {
-		logger.FromContext(r.Context()).Error("user lookup failed", "error", err)
+		if err != nil {
+			log.Error("sso user register failed", "step", "user_register", "error", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+			return
+		}
+	} else if err != nil {
+		log.Error("sso user lookup failed", "step", "user_lookup", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
+	log = log.With("user_id", u.ID.String())
+
 	// Link SSO provider record.
 	if _, err := p.ssoSvc.FindOrCreateSSO(r.Context(), u.ID, sso.ProviderGoogle, info.Name, info.Email); err != nil {
-		logger.FromContext(r.Context()).Error("sso link failed", "error", err)
+		log.Error("sso link failed", "step", "sso_link", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
@@ -88,6 +98,7 @@ func (p *SSOPresenter) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	// Create session.
 	pair, err := p.sessionSvc.Create(r.Context(), u.ID)
 	if err != nil {
+		log.Error("sso session create failed", "step", "session_create", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
