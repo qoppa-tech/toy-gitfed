@@ -32,3 +32,4 @@ go.work.sum
 # Agentic files
 AGENTS.md
 .planning/
+.worktrees/
