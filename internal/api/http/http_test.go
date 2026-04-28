@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/qoppa-tech/toy-gitfed/internal/modules/git"
+	"github.com/qoppa-tech/gitfed/internal/modules/git"
 )
 
 func TestServeHTTP_InfoRefs(t *testing.T) {

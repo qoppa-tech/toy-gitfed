@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/qoppa-tech/toy-gitfed/internal/modules/session"
-	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
+	"github.com/qoppa-tech/gitfed/internal/modules/session"
+	"github.com/qoppa-tech/gitfed/pkg/logger"
 )
 
 type TOTPPresenter struct {

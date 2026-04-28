@@ -7,7 +7,7 @@ import (
 
 	"github.com/pquerna/otp/totp"
 
-	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
+	"github.com/qoppa-tech/gitfed/pkg/logger"
 )
 
 const totpTTL = 5 * time.Minute

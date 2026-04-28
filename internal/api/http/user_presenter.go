@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/qoppa-tech/toy-gitfed/internal/modules/user"
-	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
+	"github.com/qoppa-tech/gitfed/internal/modules/user"
+	"github.com/qoppa-tech/gitfed/pkg/logger"
 )
 
 const (

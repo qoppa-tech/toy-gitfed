@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/qoppa-tech/toy-gitfed/internal/ratelimit"
-	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
+	"github.com/qoppa-tech/gitfed/internal/ratelimit"
+	"github.com/qoppa-tech/gitfed/pkg/logger"
 )
 
 type mockValidator struct {

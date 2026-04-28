@@ -1,11 +1,11 @@
 package config
 
 import (
-	"github.com/qoppa-tech/toy-gitfed/internal/database"
-	"github.com/qoppa-tech/toy-gitfed/internal/modules/sso"
-	"github.com/qoppa-tech/toy-gitfed/internal/store"
-	"github.com/qoppa-tech/toy-gitfed/pkg/env"
-	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
+	"github.com/qoppa-tech/gitfed/internal/database"
+	"github.com/qoppa-tech/gitfed/internal/modules/sso"
+	"github.com/qoppa-tech/gitfed/internal/store"
+	"github.com/qoppa-tech/gitfed/pkg/env"
+	"github.com/qoppa-tech/gitfed/pkg/logger"
 )
 
 type RateLimitConfig struct {

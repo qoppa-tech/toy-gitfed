@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/qoppa-tech/toy-gitfed/internal/modules/organization"
-	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
+	"github.com/qoppa-tech/gitfed/internal/modules/organization"
+	"github.com/qoppa-tech/gitfed/pkg/logger"
 )
 
 type OrganizationPresenter struct {
