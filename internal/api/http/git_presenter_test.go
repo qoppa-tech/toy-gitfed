@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/qoppa-tech/toy-gitfed/internal/modules/git"
+	"github.com/qoppa-tech/gitfed/internal/modules/git"
 )
 
 type mockGitService struct {

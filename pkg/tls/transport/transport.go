@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net"
 
-	pkgtls "github.com/qoppa-tech/toy-gitfed/pkg/tls"
+	pkgtls "github.com/qoppa-tech/gitfed/pkg/tls"
 )
 
 // Transport provides protocol-agnostic secure connections.

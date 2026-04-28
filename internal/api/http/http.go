@@ -26,12 +26,12 @@ import (
 	"github.com/go-git/go-billy/v6/osfs"
 	githttp "github.com/go-git/go-git/v6/backend/http"
 	"github.com/go-git/go-git/v6/plumbing/transport"
-	"github.com/qoppa-tech/toy-gitfed/internal/modules/git"
-	"github.com/qoppa-tech/toy-gitfed/internal/modules/organization"
-	"github.com/qoppa-tech/toy-gitfed/internal/modules/session"
-	"github.com/qoppa-tech/toy-gitfed/internal/modules/sso"
-	"github.com/qoppa-tech/toy-gitfed/internal/modules/user"
-	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
+	"github.com/qoppa-tech/gitfed/internal/modules/git"
+	"github.com/qoppa-tech/gitfed/internal/modules/organization"
+	"github.com/qoppa-tech/gitfed/internal/modules/session"
+	"github.com/qoppa-tech/gitfed/internal/modules/sso"
+	"github.com/qoppa-tech/gitfed/internal/modules/user"
+	"github.com/qoppa-tech/gitfed/pkg/logger"
 )
 
 // Config holds the server configuration.

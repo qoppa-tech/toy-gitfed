@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	pkgtls "github.com/qoppa-tech/toy-gitfed/pkg/tls"
+	pkgtls "github.com/qoppa-tech/gitfed/pkg/tls"
 )
 
 func newTestTransport(t *testing.T) Transport {

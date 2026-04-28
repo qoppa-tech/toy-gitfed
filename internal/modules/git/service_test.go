@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-git/go-git/v6"
 	"github.com/google/uuid"
-	"github.com/qoppa-tech/toy-gitfed/pkg/pktline"
+	"github.com/qoppa-tech/gitfed/pkg/pktline"
 )
 
 func setupTestDir(t *testing.T) string {

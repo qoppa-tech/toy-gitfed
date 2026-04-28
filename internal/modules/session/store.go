@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/qoppa-tech/toy-gitfed/internal/database/sqlc"
+	"github.com/qoppa-tech/gitfed/internal/database/sqlc"
 )
 
 var _ Repository = (*PGStore)(nil)

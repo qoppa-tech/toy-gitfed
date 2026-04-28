@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/qoppa-tech/toy-gitfed/internal/modules/organization"
+	"github.com/qoppa-tech/gitfed/internal/modules/organization"
 )
 
 type orgTokenValidator struct {

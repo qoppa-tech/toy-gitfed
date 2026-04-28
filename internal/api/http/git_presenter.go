@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/qoppa-tech/toy-gitfed/internal/modules/git"
-	"github.com/qoppa-tech/toy-gitfed/pkg/logger"
+	"github.com/qoppa-tech/gitfed/internal/modules/git"
+	"github.com/qoppa-tech/gitfed/pkg/logger"
 )
 
 type GitPresenter struct {
