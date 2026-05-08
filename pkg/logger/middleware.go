@@ -16,13 +16,11 @@ import (
 func Middleware(log Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			reqLog := log.
-				With("request_id", uuid.New().String()).
-				With("method", r.Method).
-				With("path", r.URL.Path).
-				With("ip", clientIP(r))
-
-			reqLog.Info("request started")
+			requestID := strings.TrimSpace(r.Header.Get("X-Request-Id"))
+			if requestID == "" {
+				requestID = uuid.New().String()
+			}
+			reqLog := log.With("request_id", requestID)
 
 			ctx := WithContext(r.Context(), reqLog)
 			sw := &statusWriter{ResponseWriter: w}
@@ -31,8 +29,13 @@ func Middleware(log Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(sw, r.WithContext(ctx))
 
 			reqLog.Info("request completed",
+				"method", r.Method,
+				"path", r.URL.Path,
 				"status", sw.status,
-				"duration", time.Since(start).String(),
+				"duration_ms", time.Since(start).Milliseconds(),
+				"remote_ip", clientIP(r),
+				"user_agent", r.UserAgent(),
+				"bytes_out", sw.bytesOut,
 			)
 		})
 	}
@@ -41,7 +44,8 @@ func Middleware(log Logger) func(http.Handler) http.Handler {
 // statusWriter wraps http.ResponseWriter to capture the status code.
 type statusWriter struct {
 	http.ResponseWriter
-	status int
+	status   int
+	bytesOut int
 }
 
 func (sw *statusWriter) WriteHeader(code int) {
@@ -53,7 +57,9 @@ func (sw *statusWriter) Write(b []byte) (int, error) {
 	if sw.status == 0 {
 		sw.status = http.StatusOK
 	}
-	return sw.ResponseWriter.Write(b)
+	n, err := sw.ResponseWriter.Write(b)
+	sw.bytesOut += n
+	return n, err
 }
 
 func clientIP(r *http.Request) string {

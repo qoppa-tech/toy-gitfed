@@ -16,12 +16,15 @@
 package http
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/go-git/go-billy/v6/osfs"
 	githttp "github.com/go-git/go-git/v6/backend/http"
@@ -58,7 +61,13 @@ type Config struct {
 	UserRateLimit func(http.Handler) http.Handler
 
 	// Logger (nil to disable).
-	Logger logger.Logger
+	Logger     logger.Logger
+	AppVersion string
+
+	// Health dependencies (nil skips check).
+	DBHealth           func(context.Context) error
+	RedisHealth        func(context.Context) error
+	HealthcheckTimeout time.Duration
 }
 
 // Server is the Git Smart HTTP server.
@@ -127,9 +136,55 @@ func (s *Server) registerAuthRoutes() {
 }
 
 func (s *Server) registerGitRoutes() {
+	s.mux.HandleFunc("GET /healthz", s.handleHealthz)
 	// Method-specific catch-alls. More specific auth routes take precedence.
 	s.mux.HandleFunc("GET /{path...}", s.handleGitGet)
 	s.mux.HandleFunc("POST /{path...}", s.handleGitPost)
+}
+
+func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	timeout := s.config.HealthcheckTimeout
+	if timeout <= 0 {
+		timeout = 2 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
+	defer cancel()
+
+	components := map[string]string{
+		"database": "ok",
+		"redis":    "ok",
+	}
+
+	degraded := false
+	if s.config.DBHealth != nil {
+		if err := s.config.DBHealth(ctx); err != nil {
+			components["database"] = "down"
+			degraded = true
+		}
+	}
+	if s.config.RedisHealth != nil {
+		if err := s.config.RedisHealth(ctx); err != nil {
+			components["redis"] = "down"
+			degraded = true
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if degraded {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status":     "degraded",
+			"components": components,
+			"version":    s.config.AppVersion,
+		})
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":     "ok",
+		"components": components,
+		"version":    s.config.AppVersion,
+	})
 }
 
 func (s *Server) handleGitGet(w http.ResponseWriter, r *http.Request) {

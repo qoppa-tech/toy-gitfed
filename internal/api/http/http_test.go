@@ -1,6 +1,9 @@
 package http
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -266,6 +269,63 @@ func TestServeHTTP_ErrorCases(t *testing.T) {
 				t.Errorf("status = %d, want %d", rec.Code, tc.wantStatus)
 			}
 		})
+	}
+}
+
+func TestServeHTTP_HealthzOK(t *testing.T) {
+	t.Parallel()
+
+	srv := NewServer(Config{
+		ReposDir:    "unused",
+		Address:     "127.0.0.1:0",
+		AppVersion:  "abc1234",
+		DBHealth:    func(context.Context) error { return nil },
+		RedisHealth: func(context.Context) error { return nil },
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Fatalf("content-type = %q, want application/json", ct)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("invalid json: %v", err)
+	}
+	if body["version"] != "abc1234" {
+		t.Fatalf("version = %v, want abc1234", body["version"])
+	}
+}
+
+func TestServeHTTP_HealthzDegraded(t *testing.T) {
+	t.Parallel()
+
+	srv := NewServer(Config{
+		ReposDir:    "unused",
+		Address:     "127.0.0.1:0",
+		AppVersion:  "abc1234",
+		DBHealth:    func(context.Context) error { return errors.New("db down") },
+		RedisHealth: func(context.Context) error { return nil },
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("invalid json: %v", err)
+	}
+	if body["version"] != "abc1234" {
+		t.Fatalf("version = %v, want abc1234", body["version"])
 	}
 }
 

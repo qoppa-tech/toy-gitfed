@@ -21,6 +21,7 @@ func TestMiddleware_InjectsFields(t *testing.T) {
 	mw := Middleware(l)(inner)
 	req := httptest.NewRequest("GET", "/auth/google", nil)
 	req.RemoteAddr = "10.0.0.1:12345"
+	req.Header.Set("User-Agent", "gitfed-test")
 	w := httptest.NewRecorder()
 	mw.ServeHTTP(w, req)
 
@@ -28,26 +29,28 @@ func TestMiddleware_InjectsFields(t *testing.T) {
 		t.Fatal("middleware did not inject logger into context")
 	}
 
-	// Check "request started" log line.
 	lines := splitJSONLines(buf.Bytes())
-	if len(lines) < 2 {
-		t.Fatalf("expected at least 2 log lines, got %d", len(lines))
+	if len(lines) < 1 {
+		t.Fatalf("expected at least 1 log line, got %d", len(lines))
 	}
 
-	started := lines[0]
-	if started["msg"] != "request started" {
-		t.Errorf("msg = %v, want 'request started'", started["msg"])
+	completed := lines[0]
+	if completed["msg"] != "request completed" {
+		t.Errorf("msg = %v, want 'request completed'", completed["msg"])
 	}
-	if started["method"] != "GET" {
-		t.Errorf("method = %v, want GET", started["method"])
+	if completed["method"] != "GET" {
+		t.Errorf("method = %v, want GET", completed["method"])
 	}
-	if started["path"] != "/auth/google" {
-		t.Errorf("path = %v, want /auth/google", started["path"])
+	if completed["path"] != "/auth/google" {
+		t.Errorf("path = %v, want /auth/google", completed["path"])
 	}
-	if started["ip"] != "10.0.0.1" {
-		t.Errorf("ip = %v, want 10.0.0.1", started["ip"])
+	if completed["remote_ip"] != "10.0.0.1" {
+		t.Errorf("remote_ip = %v, want 10.0.0.1", completed["remote_ip"])
 	}
-	if started["request_id"] == nil || started["request_id"] == "" {
+	if completed["user_agent"] != "gitfed-test" {
+		t.Errorf("user_agent = %v, want gitfed-test", completed["user_agent"])
+	}
+	if completed["request_id"] == nil || completed["request_id"] == "" {
 		t.Error("missing request_id")
 	}
 }
@@ -66,11 +69,11 @@ func TestMiddleware_LogsCompletion(t *testing.T) {
 	mw.ServeHTTP(w, req)
 
 	lines := splitJSONLines(buf.Bytes())
-	if len(lines) < 2 {
-		t.Fatalf("expected at least 2 log lines, got %d", len(lines))
+	if len(lines) < 1 {
+		t.Fatalf("expected at least 1 log line, got %d", len(lines))
 	}
 
-	completed := lines[len(lines)-1]
+	completed := lines[0]
 	if completed["msg"] != "request completed" {
 		t.Errorf("msg = %v, want 'request completed'", completed["msg"])
 	}
@@ -78,8 +81,11 @@ func TestMiddleware_LogsCompletion(t *testing.T) {
 	if status, ok := completed["status"].(float64); !ok || int(status) != 404 {
 		t.Errorf("status = %v, want 404", completed["status"])
 	}
-	if completed["duration"] == nil || completed["duration"] == "" {
-		t.Error("missing duration")
+	if completed["duration_ms"] == nil {
+		t.Error("missing duration_ms")
+	}
+	if bytesOut, ok := completed["bytes_out"].(float64); !ok || int(bytesOut) < 0 {
+		t.Errorf("bytes_out = %v, want non-negative number", completed["bytes_out"])
 	}
 }
 
@@ -118,6 +124,29 @@ func TestMiddleware_HandlerCanEnrichLogger(t *testing.T) {
 	}
 	if found["request_id"] == nil {
 		t.Error("downstream log should still carry request_id")
+	}
+}
+
+func TestMiddleware_UsesInboundRequestID(t *testing.T) {
+	var buf bytes.Buffer
+	l := newTestLogger(&buf, "PROD", "info")
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	mw := Middleware(l)(inner)
+	req := httptest.NewRequest("GET", "/x", nil)
+	req.Header.Set("X-Request-Id", "req-123")
+	w := httptest.NewRecorder()
+	mw.ServeHTTP(w, req)
+
+	lines := splitJSONLines(buf.Bytes())
+	if len(lines) != 1 {
+		t.Fatalf("expected 1 log line, got %d", len(lines))
+	}
+	if lines[0]["request_id"] != "req-123" {
+		t.Fatalf("request_id = %v, want req-123", lines[0]["request_id"])
 	}
 }
 

@@ -15,10 +15,10 @@ type defaultLogger struct {
 func NewWithWriter(w io.Writer, cfg Config) Logger {
 	level := parseLevel(cfg.Level)
 	var handler slog.Handler
-	if strings.EqualFold(cfg.Env, "PROD") {
-		handler = slog.NewJSONHandler(w, &slog.HandlerOptions{Level: level})
-	} else {
+	if strings.EqualFold(cfg.Env, "DEV") {
 		handler = newDevHandler(w, level)
+	} else {
+		handler = slog.NewJSONHandler(w, &slog.HandlerOptions{Level: level})
 	}
 	return &defaultLogger{slog: slog.New(handler)}
 }

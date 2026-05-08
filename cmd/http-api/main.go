@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	githttp "github.com/qoppa-tech/gitfed/internal/api/http"
 	"github.com/qoppa-tech/gitfed/internal/config"
@@ -20,18 +23,19 @@ import (
 )
 
 func main() {
-	reposDir := os.Getenv("REPOS_DIR")
-	if reposDir == "" && len(os.Args) >= 2 {
-		reposDir = os.Args[1]
-	}
-	if reposDir == "" {
-		fmt.Fprintf(os.Stderr, "usage: set REPOS_DIR or pass <repos-dir> as argument\n")
-		os.Exit(1)
-	}
 	cfg := config.Load()
 
 	log := logger.New(cfg.Log)
 	logger.SetDefault(log)
+
+	if err := cfg.Validate(); err != nil {
+		if verr, ok := err.(*config.ValidationError); ok {
+			log.Error("config validation failed", "missing_vars", verr.MissingVars, "invalid_vars", verr.InvalidVars)
+		} else {
+			log.Error("config validation failed", "error", err)
+		}
+		os.Exit(1)
+	}
 
 	ctx := context.Background()
 
@@ -40,7 +44,6 @@ func main() {
 	if err != nil {
 		log.Fatal("database connection failed", "error", err)
 	}
-	defer dbPool.Close()
 
 	queries := sqlc.New(dbPool)
 
@@ -48,7 +51,6 @@ func main() {
 	if err != nil {
 		log.Fatal("redis connection failed", "error", err)
 	}
-	defer redisStore.Close()
 
 	// Rate limiting.
 	limiter := ratelimit.NewLimiter(redisStore.Client())
@@ -77,11 +79,12 @@ func main() {
 	ssoSvc := sso.NewService(ssoStore, ssoStateStore, cfg.Google)
 	totpSvc := session.NewTOTPService(redisStore, cfg.TOTPIssuer)
 	orgSvc := organization.NewService(orgStore)
-	gitSvc := gitmod.NewService(reposDir)
+	gitSvc := gitmod.NewService(cfg.ReposDir)
 
 	srv := githttp.NewServer(githttp.Config{
-		ReposDir:       reposDir,
+		ReposDir:       cfg.ReposDir,
 		Address:        cfg.HTTPAddr,
+		AppVersion:     cfg.AppVersion,
 		RepoStore:      repoStore,
 		GitService:     gitSvc,
 		UserService:    userSvc,
@@ -93,7 +96,51 @@ func main() {
 		IPRateLimit:    ipRateLimit,
 		UserRateLimit:  userRateLimit,
 		Logger:         log,
+		DBHealth: func(ctx context.Context) error {
+			return dbPool.Ping(ctx)
+		},
+		RedisHealth: func(ctx context.Context) error {
+			return redisStore.Client().Ping(ctx).Err()
+		},
+		HealthcheckTimeout: cfg.HealthcheckTimeout,
 	})
 
-	log.Fatal("server failed", "error", srv.Serve())
+	httpServer := &http.Server{
+		Addr:    cfg.HTTPAddr,
+		Handler: srv,
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		log.Info("server listening", "address", cfg.HTTPAddr, "version", cfg.AppVersion)
+		errCh <- httpServer.ListenAndServe()
+	}()
+
+	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	select {
+	case err := <-errCh:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatal("server failed", "error", err)
+		}
+		return
+	case <-sigCtx.Done():
+		log.Info("shutdown signal received")
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+	defer cancel()
+
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		log.Error("graceful shutdown failed", "error", err)
+	}
+	if err := redisStore.Close(); err != nil {
+		log.Error("redis close failed", "error", err)
+	}
+	dbPool.Close()
+
+	if err := <-errCh; err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Error("server exit error", "error", err)
+	}
 }
